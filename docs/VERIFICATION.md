@@ -15,6 +15,9 @@
 | frontend premium strict 静态审计 | 0 个错误 / 未解决项 |
 | DESIGN.md lint | 0 个错误；部分语义 token 在 CSS 中使用，文档组件引用检查产生非阻塞提示 |
 | GitHub Actions，Ubuntu 24.04 / Go 1.25 / Node.js 24 | 通过，包含静态检查、测试与双架构打包（[运行记录](https://github.com/shushu594088/meshport/actions/runs/38411390213)） |
+| GitHub 一键安装入口，Ubuntu 24.04 amd64 | 通过：从 GitHub 下载脚本及最新 Release、校验安装包、安装后 Web 启动并开机自启、代理不开机自启、拒绝重复覆盖、清除数据卸载（[运行记录](https://github.com/shushu594088/meshport/actions/runs/38415966082)） |
+
+安装入口的单元检查覆盖 Ubuntu / Debian、amd64 / arm64、未来 CentOS 的精确版本 / 大版本 / 通配匹配优先级、Windows CRLF 校验清单、损坏安装包与非法路径拒绝。CentOS 测试使用模拟清单，尚未提供实际 CentOS 安装包。
 
 ## 真实测试环境
 
