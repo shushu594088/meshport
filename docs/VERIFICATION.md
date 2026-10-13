@@ -14,6 +14,7 @@
 | npm audit | 0 个已知漏洞 |
 | frontend premium strict 静态审计 | 0 个错误 / 未解决项 |
 | DESIGN.md lint | 0 个错误；部分语义 token 在 CSS 中使用，文档组件引用检查产生非阻塞提示 |
+| GitHub Actions，Ubuntu 24.04 / Go 1.25 / Node.js 24 | 通过，包含静态检查、测试与双架构打包（[运行记录](https://github.com/shushu594088/meshport/actions/runs/38411390213)） |
 
 ## 真实测试环境
 
@@ -47,6 +48,5 @@ Playwright Chromium 在真实服务器应用上执行 3 个端到端测试：订
 - Debian 系统与 arm64 硬件的完整安装、TUN 和重启验收；目前提供兼容的安装脚本与可构建发布包。
 - 服务器整机重启（已验证服务重启、启动前保护与状态恢复，未重启用户服务器）。
 - 公网 HTTPS 反向代理、不同内核版本、复杂多网卡路由、IPv6 TUN 与所有第三方订阅协议组合。
-- GitHub Actions 工作流已添加，尚未推送运行。
 
 这些环境应在对应设备上使用同一套验收脚本验证；不能将交叉编译或单元测试当作这些环境的实际验收结果。
