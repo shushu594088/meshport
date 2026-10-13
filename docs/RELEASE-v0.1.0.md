@@ -16,6 +16,20 @@ Meshport 首个发布版本：通过浏览器管理 Linux 服务器的 Mihomo �
 
 ## 安装
 
+在服务器上执行一条命令即可自动下载最新稳定版、校验安装包并完成安装：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash
+```
+
+当前支持 Ubuntu / Debian 的 amd64、arm64。命令保持不变，后续系统适配通过各 Release 的 `INSTALL-TARGETS.tsv` 清单选择对应安装包；当前尚未提供 CentOS 安装包。
+
+需要指定端口时，末尾改为 `sudo bash -s -- --port 8889`。需要固定本版本时，末尾改为 `sudo bash -s -- --version v0.1.0`。
+
+一键安装后，执行 `sudo bash /usr/libexec/meshport-uninstall` 可卸载并保留数据；加 `--purge` 清除数据。已有安装会被拒绝覆盖，升级前先保留数据卸载。
+
+也可以手动安装：
+
 从本 Release 下载与你服务器架构对应的文件：
 
 | 架构 | 文件 |

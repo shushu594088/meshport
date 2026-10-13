@@ -38,6 +38,7 @@ meshport_asset() {
 meshport_verify() {
  local directory=$1 asset=$2 hash name extra selected_hash=''
  while read -r hash name extra || [[ -n ${hash:-} ]]; do
+  name=${name%$'\r'}
   name=${name#\*}
   [[ $name == "$asset" ]] || continue
   [[ $hash =~ ^[a-fA-F0-9]{64}$ && -z $extra && -z $selected_hash ]] || { meshport_error '安装包校验清单无效'; return 1; }

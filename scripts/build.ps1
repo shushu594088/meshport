@@ -28,6 +28,7 @@ foreach ($architecture in @('amd64','arm64')) {
  tar -czf "build/meshport-0.1.0-linux-$architecture.tar.gz" -C $releasePath .
  Check-Exit
 }
-Get-ChildItem "build/meshport-$releaseVersion-linux-*.tar.gz" | Sort-Object Name | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content -Encoding ascii build/SHA256SUMS
+$checksumLines = Get-ChildItem "build/meshport-$releaseVersion-linux-*.tar.gz" | Sort-Object Name | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" }
+[IO.File]::WriteAllText((Join-Path $PWD 'build/SHA256SUMS'), ($checksumLines -join "`n") + "`n", [Text.UTF8Encoding]::new($false))
 Copy-Item -LiteralPath deploy/install-targets.tsv -Destination build/INSTALL-TARGETS.tsv
 Remove-Item Env:GOOS,Env:GOARCH,Env:CGO_ENABLED

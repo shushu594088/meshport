@@ -22,6 +22,10 @@ EOF
 printf 'package payload\n' > "$workspace/meshport-test.tar.gz"
 (cd "$workspace" && sha256sum meshport-test.tar.gz > SHA256SUMS)
 meshport_verify "$workspace" meshport-test.tar.gz
+# Windows-built releases can use CRLF in their checksum list.
+sed 's/$/\r/' "$workspace/SHA256SUMS" > "$workspace/checksums-crlf"
+mv "$workspace/checksums-crlf" "$workspace/SHA256SUMS"
+meshport_verify "$workspace" meshport-test.tar.gz
 printf 'tampered\n' >> "$workspace/meshport-test.tar.gz"
 if meshport_verify "$workspace" meshport-test.tar.gz >/dev/null 2>&1; then echo 'tampered package accepted'; exit 1; fi
 cat > "$workspace/unsafe.tsv" <<'EOF'
