@@ -20,7 +20,10 @@ jobs:
       - run: bash scripts/build.sh
       - name: Install published package through the universal bootstrap
         run: |
-          sudo bash ./install.sh --version v0.1.0 --port 18888 > /tmp/meshport-install-check.log 2>&1
+          if ! (set -o pipefail; curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --port 18888) > /tmp/meshport-install-check.log 2>&1; then
+            sed -E 's/(初始化凭[据证].*[：:]).*/\1[REDACTED]/' /tmp/meshport-install-check.log
+            exit 1
+          fi
           test "$(systemctl is-enabled meshport)" = enabled
           test "$(systemctl is-enabled meshport-mihomo)" = disabled
           test "$(systemctl is-active meshport)" = active
