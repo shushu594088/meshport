@@ -80,4 +80,10 @@ npm run test:e2e
 
 ## 发布
 
-发布前重新生成第三方许可汇总：`python scripts/generate-notices.py`（需要已安装前端依赖和 Go）。然后运行构建脚本，将两个架构的安装包和 `SHA256SUMS` 上传到对应版本的 GitHub Release。构建脚本只将本版本的两个安装包写入校验清单。
+发布前重新生成第三方许可汇总：`python scripts/generate-notices.py`（需要已安装前端依赖和 Go）。然后运行构建脚本，将安装包、`SHA256SUMS` 和 `INSTALL-TARGETS.tsv` 上传到对应版本的 GitHub Release。构建脚本只将本版本的安装包写入校验清单。
+
+仓库根目录 `install.sh` 是固定的一键入口，与安装包内的 `scripts/install.sh` 有不同职责：前者检测系统并下载最新对应安装包，后者完成该版本的实际安装。用户命令始终指向 `main/install.sh`，不用随着版本或发行版变化修改。
+
+`deploy/install-targets.tsv` 是发行版选择的唯一来源，四列分别为发行版 ID、系统版本、架构和安装包文件名模板。系统版本优先级为精确版本 > 大版本 > `*`；`{version}` 替换为 Release 的版本号。发布时复制为 `INSTALL-TARGETS.tsv`。例如以后增加 CentOS 9 包，可增加 `centos<TAB>9<TAB>amd64<TAB>meshport-{version}-linux-centos9-amd64.tar.gz`，并实现对应包内的发行版安装逻辑，无需更改用户安装命令。当前清单只声明 Ubuntu 和 Debian。
+
+执行 `bash scripts/bootstrap-test.sh` 可检查架构选择、未来发行版与版本路由、路径约束和校验失败保护。CI 另在独立 Ubuntu runner 中从 GitHub Release 下载安装，验证默认自启、拒绝重复覆盖和卸载。不会对用户已安装的服务器执行重装测试。

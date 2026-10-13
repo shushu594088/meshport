@@ -29,4 +29,5 @@ foreach ($architecture in @('amd64','arm64')) {
  Check-Exit
 }
 Get-ChildItem "build/meshport-$releaseVersion-linux-*.tar.gz" | Sort-Object Name | Get-FileHash -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $([IO.Path]::GetFileName($_.Path))" } | Set-Content -Encoding ascii build/SHA256SUMS
+Copy-Item -LiteralPath deploy/install-targets.tsv -Destination build/INSTALL-TARGETS.tsv
 Remove-Item Env:GOOS,Env:GOARCH,Env:CGO_ENABLED

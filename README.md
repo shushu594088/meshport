@@ -34,6 +34,29 @@ Meshport 适合需要在 Linux 服务器上管理代理、又希望通过浏览�
 
 **普通用户直接从 GitHub Releases 下载安装包，无需克隆源码，也无需安装 Go 或 Node.js。**
 
+### 一键安装（推荐）
+
+在服务器上执行这一条命令：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash
+```
+
+自动识别系统、系统版本与处理器架构，读取最新稳定 Release 的安装清单，下载对应安装包、校验 SHA-256、安装系统依赖并完成部署。安装后输出后台地址与一次性初始化凭证。
+
+**默认 Web 开机自启，代理内核不开机自启，代理与 TUN 均关闭。**
+
+这条命令保持不变。后续增加 CentOS 等发行版或发布新版本时，脚本根据 Release 的系统匹配清单自动选择对应安装包；当前实际支持 Ubuntu 和 Debian，其他系统会明确提示暂不支持。
+
+已有安装不会被直接覆盖；升级请先保留数据卸载。首次安装可指定后台端口或固定版本：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --port 8889
+curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --version v0.1.0
+```
+
+需要本机已有 curl 和 sudo。root 账号可将 `sudo bash` 改为 `bash`。
+
 ### 环境要求
 
 | 项目 | 要求 |
@@ -44,7 +67,7 @@ Meshport 适合需要在 Linux 服务器上管理代理、又希望通过浏览�
 | 网络 | 在线安装需要访问 GitHub 下载固定版本的 Mihomo |
 | 运行依赖 | curl、gzip、coreutils、iproute2、sudo、CA 证书 |
 
-### 下载并安装
+### 手动下载安装包（可选）
 
 在要安装 Meshport 的服务器上执行。以下命令自动识别架构，下载 **v0.1.0** 并校验安装包：
 
@@ -265,6 +288,8 @@ MESHPORT_SECURE_COOKIE=true
 ```bash
 sudo bash uninstall.sh
 ```
+
+通过一键入口安装的用户，可直接执行 `sudo bash /usr/libexec/meshport-uninstall`；加 `--purge` 可明确清除全部 Meshport 数据。
 
 默认停止服务并移除程序，**保留管理员密码、订阅和设置**。升级时先默认卸载，再使用新版本安装包安装；重新安装保留已有数据和代理自启选项，不会在安装过程中自动启动代理。
 

@@ -18,9 +18,25 @@ jobs:
           cache-dependency-path: web/package-lock.json
       - run: go vet ./...
       - run: bash scripts/build.sh
+      - name: Install published package through the universal bootstrap
+        run: |
+          sudo bash ./install.sh --version v0.1.0 --port 18888 > /tmp/meshport-install-check.log 2>&1
+          test "$(systemctl is-enabled meshport)" = enabled
+          test "$(systemctl is-enabled meshport-mihomo)" = disabled
+          test "$(systemctl is-active meshport)" = active
+          curl --fail --silent http://127.0.0.1:18888/api/auth | grep '"initialized":false'
+          if sudo bash ./install.sh --version v0.1.0 --port 18888 > /tmp/meshport-repeat-check.log 2>&1; then
+            echo 'Repeat install unexpectedly overwrote the installation'; exit 1
+          fi
+          test "$(systemctl is-active meshport)" = active
+          sudo bash /usr/libexec/meshport-uninstall --purge
+          test ! -e /usr/bin/meshport
+          test ! -e /usr/libexec/meshport-uninstall
+          test ! -d /var/lib/meshport
       - uses: actions/upload-artifact@v4
         with:
           name: meshport-linux-packages
           path: |
             build/meshport-0.1.0-linux-*.tar.gz
             build/SHA256SUMS
+            build/INSTALL-TARGETS.tsv

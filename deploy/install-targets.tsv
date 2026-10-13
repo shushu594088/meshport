@@ -1,0 +1,6 @@
+# meshport-install-targets-v1
+# distro<TAB>os-version-or-major-or-*<TAB>architecture<TAB>release-asset-template
+ubuntu	*	amd64	meshport-{version}-linux-amd64.tar.gz
+ubuntu	*	arm64	meshport-{version}-linux-arm64.tar.gz
+debian	*	amd64	meshport-{version}-linux-amd64.tar.gz
+debian	*	arm64	meshport-{version}-linux-arm64.tar.gz
