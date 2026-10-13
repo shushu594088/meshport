@@ -20,7 +20,8 @@ jobs:
       - run: bash scripts/build.sh
       - name: Install published package through the universal bootstrap
         run: |
-          if ! (set -o pipefail; curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --port 18888) > /tmp/meshport-install-check.log 2>&1; then
+          # Avoid the raw endpoint's short cache window immediately after a push.
+          if ! (set -o pipefail; curl -fsSL 'https://raw.githubusercontent.com/shushu594088/meshport/${{ github.sha }}/install.sh' | sudo bash -s -- --port 18888) > /tmp/meshport-install-check.log 2>&1; then
             sed -E 's/(初始化凭[据证].*[：:]).*/\1[REDACTED]/' /tmp/meshport-install-check.log
             exit 1
           fi
