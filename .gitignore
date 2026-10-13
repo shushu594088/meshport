@@ -1,0 +1,17 @@
+node_modules/
+web/dist/
+build/
+.local/
+*.log
+test-results/
+playwright-report/
+*.tmp
+premium-audit.json
+*.db
+*.db-shm
+*.db-wal
+init-token
+runtime.yaml
+recovery.json
+operation.lock
+kernel.pid

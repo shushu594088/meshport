@@ -1,0 +1,26 @@
+{
+ "name": "meshport-web",
+ "private": true,
+ "version": "0.1.0",
+ "type": "module",
+ "scripts": {
+  "dev": "vite --host 127.0.0.1",
+  "build": "vue-tsc --noEmit && vite build",
+  "typecheck": "vue-tsc --noEmit",
+  "test:e2e": "playwright test",
+  "format": "prettier --write src"
+ },
+ "dependencies": {
+  "lucide-vue-next": "0.545.0",
+  "vue": "3.5.44"
+ },
+ "devDependencies": {
+  "@axe-core/playwright": "4.10.2",
+  "@playwright/test": "1.56.0",
+  "@vitejs/plugin-vue": "6.0.1",
+  "prettier": "3.6.2",
+  "typescript": "5.9.3",
+  "vite": "7.3.7",
+  "vue-tsc": "3.1.1"
+ }
+}

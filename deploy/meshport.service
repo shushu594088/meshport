@@ -1,0 +1,22 @@
+[Unit]
+Description=Meshport web management
+After=network.target
+
+[Service]
+Type=simple
+User=meshport
+Group=meshport
+EnvironmentFile=-/etc/meshport/environment
+ExecStart=/usr/bin/meshport serve
+Restart=on-failure
+RestartSec=3
+UMask=0077
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/meshport
+# Do not use seccomp directives that imply NoNewPrivileges for this non-root
+# unit: the fixed sudo helper is the sole service-control privilege boundary.
+
+[Install]
+WantedBy=multi-user.target

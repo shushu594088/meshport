@@ -1,0 +1,28 @@
+[Unit]
+Description=Meshport Mihomo proxy kernel
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/var/lib/meshport/runtime.yaml
+
+[Service]
+Type=simple
+User=meshport
+Group=meshport
+ExecStartPre=/usr/bin/meshport guard
+ExecStart=/usr/bin/meshport-mihomo -d /var/lib/meshport -f /var/lib/meshport/runtime.yaml
+ExecStopPost=+/usr/libexec/meshport-helper cleanup
+Restart=no
+TimeoutStopSec=15
+UMask=0077
+StandardOutput=null
+StandardError=null
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/meshport
+# ExecStartPre must be able to arm the fixed rollback helper through sudo.
+
+[Install]
+WantedBy=multi-user.target
