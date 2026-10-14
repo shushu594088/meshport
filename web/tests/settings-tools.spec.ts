@@ -1,0 +1,30 @@
+import {test,expect} from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
+const password=process.env.MESHPORT_TEST_PASSWORD||'meshport-test-password-2026';
+test.beforeEach(async({page})=>{await page.goto('/');await page.getByLabel('管理员密码',{exact:true}).fill(password);await page.getByRole('button',{name:'登录',exact:true}).click();await expect(page.getByRole('heading',{name:'概览',exact:true})).toBeVisible();});
+test('DNS preset persists with settings, dark theme and encrypted backup dialog',async({page})=>{
+ let dns={override:false,nameservers:[] as string[],bootstrap:[] as string[],proxy_nameservers:[] as string[]}, revision=10;
+ await page.route('**/api/state',async route=>{const response=await route.fetch();const state=await response.json();state.revision=revision;state.active='dns-sub';state.subscriptions=[{id:'dns-sub',name:'DNS 验收订阅',active:true,kind:'full',source:'粘贴',updated_at:new Date().toISOString(),dns}];await route.fulfill({json:state});});
+ await page.route('**/api/settings',async route=>{const body=route.request().postDataJSON();expect(body.subscription_id).toBe('dns-sub');expect(body.revision).toBe(revision);dns=body.dns;revision++;await route.fulfill({json:{ok:true}});});
+ await page.getByRole('button',{name:'刷新状态',exact:true}).click();await page.getByRole('link',{name:'设置',exact:true}).click();
+ await page.getByLabel('使用自定义 DNS').check();await page.getByRole('button',{name:'国内可直连 DoH',exact:true}).click();await expect(page.getByLabel('解析上游',{exact:true})).toHaveValue('https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query');
+ await page.getByRole('button',{name:'保存设置',exact:true}).click();await expect(page.getByText('设置已同步',{exact:true})).toBeVisible();expect(dns.override).toBe(true);expect(dns.proxy_nameservers.length).toBe(2);
+ await page.getByLabel('解析上游',{exact:true}).fill('invalid dns');await page.getByLabel('使用自定义 DNS').uncheck();await page.getByRole('button',{name:'保存设置',exact:true}).click();await expect(page.getByText('设置已同步',{exact:true})).toBeVisible();expect(dns.override).toBe(false);expect(dns.nameservers[0]).toBe('https://dns.alidns.com/dns-query');await page.getByLabel('使用自定义 DNS').check();await expect(page.getByLabel('解析上游',{exact:true})).toHaveValue('https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query');await page.getByLabel('使用自定义 DNS').uncheck();
+ await page.getByLabel('主题模式',{exact:true}).selectOption('dark');await expect(page.locator('html')).toHaveAttribute('data-theme','dark');await page.getByLabel('启动页面',{exact:true}).selectOption('connections');
+ await page.getByRole('button',{name:'下载加密备份',exact:true}).click();const modal=page.getByRole('dialog',{name:'下载加密备份',exact:true});await expect(modal.getByRole('button',{name:'取消',exact:true})).toBeFocused();await modal.getByRole('button',{name:'下载备份',exact:true}).click();await expect(page.getByLabel('备份密码',{exact:true})).toBeFocused();await expect(modal).toContainText('12–256');await page.keyboard.press('Escape');
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+ expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze()).violations).toEqual([]);await page.screenshot({path:'../build/ui-settings-dark-mobile.png',fullPage:true});
+ await page.getByLabel('启动页面',{exact:true}).selectOption('overview');await page.reload();await expect(page.getByRole('heading',{name:'设置',exact:true})).toBeVisible();await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
+});
+test('connection filtering, close confirmation, live logs and error recovery',async({page})=>{
+ await page.route('**/api/state',async route=>{const response=await route.fetch();const state=await response.json();state.service.running=true;state.settings.log_level='info';await route.fulfill({json:state});});
+ let failed=false,closed=false;
+ await page.route('**/api/connections',route=>failed?route.fulfill({status:503,json:{error:'内核暂时不可用'}}):route.fulfill({json:{uploadTotal:1000,downloadTotal:2000,memory:1024,connections:closed?[]:Array.from({length:25},(_,i)=>({id:'connection-'+i,metadata:{host:'target-'+i+'.example',destinationPort:'443',sourceIP:'127.0.0.1',network:'tcp',process:''},chains:['验收节点'],upload:100,download:200,rule:'MATCH'}))}}));
+ await page.route('**/api/core/action',async route=>{expect(route.request().postDataJSON().action).toBe('connections-close');closed=true;await route.fulfill({json:{ok:true}});});
+ await page.route('**/api/logs',route=>route.fulfill({json:[{type:'info',payload:'[TCP] safe.example → 验收节点'}]}));
+ await page.getByRole('button',{name:'刷新状态',exact:true}).click();await page.getByRole('link',{name:'连接',exact:true}).click();await expect(page.locator('.connection-card')).toHaveCount(20);await page.getByLabel('筛选连接',{exact:true}).fill('target-24');await expect(page.locator('.connection-card')).toHaveCount(1);
+ failed=true;await page.getByRole('button',{name:'重试读取',exact:true}).click();await expect(page.getByRole('alert')).toContainText('已读取的数据保留');await expect(page.locator('.connection-card')).toHaveCount(1);failed=false;
+ await page.getByRole('button',{name:'关闭全部连接',exact:true}).click();await expect(page.getByRole('dialog').getByRole('button',{name:'取消',exact:true})).toBeFocused();await page.getByRole('dialog').getByRole('button',{name:'确认关闭',exact:true}).click();await expect(page.locator('.connection-card')).toHaveCount(0);
+ await page.getByRole('link',{name:'日志',exact:true}).click();await expect(page.locator('.log-feed')).toContainText('safe.example');await page.getByRole('button',{name:'暂停刷新',exact:true}).click();await page.getByRole('button',{name:'清空本页日志',exact:true}).click();await expect(page.locator('.log-feed')).toContainText('暂无日志');
+ await page.setViewportSize({width:390,height:844});await expect.poll(()=>page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);expect((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa','wcag22aa']).analyze()).violations).toEqual([]);
+});

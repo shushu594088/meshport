@@ -144,7 +144,7 @@ svg {
   color: white;
 }
 .primary:not(:disabled):hover {
-  background: #10576e;
+  background: color-mix(in srgb, var(--primary), black 18%);
 }
 .outline {
   border-color: var(--border);
@@ -152,14 +152,14 @@ svg {
 .outline:not(:disabled):hover,
 .icon-button:not(:disabled):hover,
 .ghost:not(:disabled):hover {
-  background: #e4ecf1;
+  background: color-mix(in srgb, var(--primary) 8%, var(--surface));
 }
 .danger-button {
   background: var(--danger);
   color: white;
 }
 .danger-button:not(:disabled):hover {
-  background: #962d34;
+  background: color-mix(in srgb, var(--danger), black 18%);
 }
 .danger-text {
   color: var(--danger);
@@ -240,7 +240,7 @@ code {
   text-decoration: none;
 }
 .sidebar nav a.active {
-  background: #e5f1f5;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
   color: var(--primary);
 }
 .sidebar-bottom {
@@ -316,16 +316,16 @@ code {
 }
 .alert.danger {
   color: var(--danger);
-  background: #fcecee;
-  border: 1px solid #ebc3c9;
+  background: color-mix(in srgb, var(--danger) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--danger) 30%, var(--surface));
 }
 .alert.warning {
   color: var(--warning);
-  background: #fff6e7;
-  border: 1px solid #e7d7b7;
+  background: color-mix(in srgb, var(--warning) 9%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--surface));
 }
 .alert.info {
-  background: #e5f1f5;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
   color: var(--primary);
   flex-wrap: wrap;
 }
@@ -377,7 +377,7 @@ code {
 }
 .positive {
   color: var(--success);
-  background: #eaf4ee;
+  background: color-mix(in srgb, var(--success) 9%, var(--surface));
 }
 .neutral {
   color: var(--muted);
@@ -751,7 +751,7 @@ dd {
   display: inline;
 }
 .node.selected {
-  background: #e5f1f5;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
   border-color: var(--primary);
   color: var(--primary);
 }
@@ -873,7 +873,7 @@ dd {
 }
 .mode-control label.selected {
   border-color: var(--primary);
-  background: #e5f1f5;
+  background: color-mix(in srgb, var(--primary) 10%, var(--surface));
   color: var(--primary);
 }
 .mode-control input {
@@ -936,7 +936,7 @@ dd {
 }
 .settings-help code {
   display: block;
-  background: #e2eaf0;
+  background: var(--border);
   padding: 14px;
   border-radius: var(--radius);
   font-size: 11px;
@@ -1140,9 +1140,11 @@ dialog > p {
     display: flex;
     margin-top: 18px;
     gap: 8px;
-    justify-content: space-between;
+    justify-content: flex-start;
+    overflow-x: auto;
   }
   .sidebar nav a {
+    flex: none;
     padding: 10px 12px;
     gap: 7px;
     font-size: 13px;
@@ -1298,5 +1300,97 @@ dialog > p {
   select:focus-visible,
   textarea:focus-visible {
     outline-color: Highlight;
+  }
+}
+
+:root {
+  color-scheme: light;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --primary: #74c5df;
+  --background: #101b24;
+  --surface: #192935;
+  --ink: #e5edf3;
+  --muted: #a9bdca;
+  --border: #405767;
+  --success: #7aceaa;
+  --warning: #e6bd78;
+  --danger: #f19ba0;
+  --scroll-thumb: #627d8f;
+  --scroll-track: #101b24;
+  --scroll-hover: #86a3b5;
+  --scroll-active: #a9bdca;
+}
+:root[data-theme="dark"] .primary,
+:root[data-theme="dark"] .danger-button {
+  color: #101b24;
+}
+textarea {
+  resize: none;
+}
+.settings-tools {
+  margin-top: 24px;
+}
+.settings-tools h3 {
+  margin-top: 24px;
+}
+.settings-tools .test-actions,
+.dns-presets {
+  margin: 12px 0;
+}
+.config-preview {
+  max-height: 55vh;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--font-mono);
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--background);
+}
+.network-totals {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin: 18px 0;
+}
+.network-totals strong {
+  display: block;
+  font: 600 22px/1.7 var(--font-mono);
+}
+.connection-list {
+  display: grid;
+  gap: 12px;
+}
+.connection-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  overflow-wrap: anywhere;
+}
+.connection-card > div {
+  min-width: 0;
+}
+.log-feed {
+  max-height: 60vh;
+  overflow: auto;
+  margin-top: 18px;
+}
+.log-feed p {
+  overflow-wrap: anywhere;
+}
+.live-status {
+  min-height: 26px;
+}
+@media (max-width: 560px) {
+  .network-totals {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .connection-card {
+    align-items: stretch;
+    flex-direction: column;
   }
 }

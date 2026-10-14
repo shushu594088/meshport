@@ -16,7 +16,7 @@ Meshport 是一个面向个人服务器和单管理员的轻量级代理管理�
 
 Meshport 适合需要在 Linux 服务器上管理代理、又希望通过浏览器完成日常操作的用户。
 
-- **浏览器管理**：概览、订阅、节点、测试、设置五个页面，展示运行状态、当前订阅和操作结果。
+- **浏览器管理**：概览、订阅、节点、测试、连接、日志、设置七个页面，展示运行状态、当前订阅和操作结果。
 - **订阅管理**：支持 Mihomo / Clash YAML 订阅地址及手动粘贴，可保存多份订阅，每次启用一份。
 - **节点选择**：展示策略组、节点和当前选择；手动选择结果持久化保存。
 - **节点测速与网站测试**：一键测试全部节点延迟，支持单项重测与取消；检查 12 个常用网站的连通性和可识别的地区支持信号。
@@ -28,7 +28,7 @@ Meshport 适合需要在 Linux 服务器上管理代理、又希望通过浏览�
 - **TUN 自动恢复**：开启后需在 60 秒内确认可访问，否则自动恢复；恢复计时器不依赖浏览器或后台进程持续在线。
 - **原生部署**：提供 amd64、arm64 安装包及安装、卸载脚本。
 
-当前版本为 **v0.1.1**，新增节点测速、网站测试及 Web / 命令行更新。[查看本次更新内容](docs/RELEASE-v0.1.1.md) · [完整更新记录](CHANGELOG.md)。v0.1.0 在 Ubuntu 22.04 amd64 已完成真实内核、端口迁移、TUN 回滚和卸载重装验证。新增更新流程尚未完成真实 systemd 升级验收，详见[验证记录](docs/VERIFICATION.md)。
+当前版本为 **v0.1.2**，新增按订阅 DNS 覆写、实时连接与日志、主题和管理工具，并修复国内服务器节点因海外 DNS 不可达而全部测试失败的问题。[查看本次更新内容](docs/RELEASE-v0.1.2.md) · [完整更新记录](CHANGELOG.md) · [验证记录](docs/VERIFICATION.md)。
 
 第一版不包含 Base64 / 通用节点 URI 转换、订阅节点合并、Docker 部署、多用户或内置证书管理。
 
@@ -54,7 +54,7 @@ curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --port 8889
-curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --version v0.1.1
+curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --version v0.1.2
 ```
 
 需要本机已有 curl 和 sudo。root 账号可将 `sudo bash` 改为 `bash`。
@@ -71,13 +71,13 @@ curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.
 
 ### 手动下载安装包（可选）
 
-在要安装 Meshport 的服务器上执行。以下命令自动识别架构，下载 **v0.1.1** 并校验安装包：
+在要安装 Meshport 的服务器上执行。以下命令自动识别架构，下载 **v0.1.2** 并校验安装包：
 
 ```bash
 sudo apt update
 sudo apt install -y curl gzip coreutils iproute2 sudo ca-certificates
 
-VERSION=0.1.1
+VERSION=0.1.2
 case "$(uname -m)" in
   x86_64) ARCH=amd64 ;;
   aarch64|arm64) ARCH=arm64 ;;
@@ -227,6 +227,26 @@ TUN 默认绕行私有网络、本机、root 和本工具进程，以及开启�
 - 删除当前启用的订阅前，先切换其他有效订阅，或停止代理。
 - URL 订阅可以手动更新；粘贴导入没有更新 URL，需要重新导入。
 
+## DNS 与 Web 管理工具（v0.1.2）
+
+本版本新增以下服务器与浏览器管理功能。
+
+设置页新增 IPv6、统一延迟和内核日志等级。统一延迟默认跟随订阅；IPv6 默认关闭，启用前确认服务器网络支持。日志默认为静默，查看实时日志时可改为信息或调试并保存。
+
+DNS 默认跟随订阅，TUN 不再强制替换为海外 DNS。没有 DNS 的节点列表使用系统 DNS。开启覆写后，仅对当前订阅保存，可填写解析上游、引导 DNS 和节点域名 DNS，每组最多 8 个。引导 DNS 必须使用 IP，不支持凭证、查询参数和 `#代理` 附加参数。国内网络可选择“国内可直连 DoH”，包含 AliDNS / DNSPod 与 IP 引导 DNS；可用性取决于服务器网络。点击“保存设置”后生效，关闭覆写恢复原订阅 DNS。
+
+“连接”页每 3 秒读取实际连接、累计流量和内存，支持筛选、每页 20 条分页及确认后关闭连接。“日志”页仅收集打开本页期间的实时日志，最多保留最近 300 条，离开页面清空，支持暂停和手动清空。
+
+设置页还提供：
+
+- 浅色 / 深色 / 系统主题、启动页面与环境变量格式，偏好仅保存到当前浏览器。
+- Bash / PowerShell / CMD 代理环境变量复制，地址为服务器本机 127.0.0.1。含代理凭证时先确认；剪贴板不可用时下载脚本。CMD 不支持含百分号编码的凭证，请使用 Bash 或 PowerShell。
+- 实际内核版本、DNS 缓存清理与 GeoData 更新，控制接口仍仅监听本机。
+- 脱敏配置查看与诊断导出。
+- 加密配置备份与恢复：AES-256-GCM、PBKDF2-SHA256（600000 次），密码 12–256 字节，明文最多 6 MiB。密码丢失无法解密。恢复覆盖订阅、代理设置和节点选择，保留管理密码、控制密钥与 Web 端口，关闭 TUN。备份不含内核程序、GeoData、provider 缓存或浏览器偏好。
+
+Web 管理适配 Linux 后台服务；托盘、UWP、桌面窗口轻量模式和静默启动不适用于此部署方式。
+
 ## 架构与配置管理
 
 ```text
@@ -336,8 +356,8 @@ bash scripts/build.sh
 生成：
 
 ```text
-build/meshport-0.1.1-linux-amd64.tar.gz
-build/meshport-0.1.1-linux-arm64.tar.gz
+build/meshport-0.1.2-linux-amd64.tar.gz
+build/meshport-0.1.2-linux-arm64.tar.gz
 build/SHA256SUMS
 ```
 

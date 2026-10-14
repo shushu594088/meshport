@@ -13,19 +13,31 @@ type Settings struct {
 	Autostart     bool     `json:"autostart"`
 	TUN           bool     `json:"tun"`
 	Bypass        []string `json:"bypass"`
+	IPv6          bool     `json:"ipv6"`
+	UnifiedDelay  *bool    `json:"unified_delay,omitempty"`
+	LogLevel      string   `json:"log_level"`
+}
+type DNSSettings struct {
+	Override         bool     `json:"override"`
+	Nameservers      []string `json:"nameservers"`
+	Bootstrap        []string `json:"bootstrap"`
+	ProxyNameservers []string `json:"proxy_nameservers"`
 }
 type Subscription struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	URL       string    `json:"url"`
-	Content   string    `json:"-"`
-	UpdatedAt time.Time `json:"updated_at"`
-	Kind      string    `json:"kind"`
+	ID        string      `json:"id"`
+	Name      string      `json:"name"`
+	URL       string      `json:"url"`
+	Content   string      `json:"-"`
+	UpdatedAt time.Time   `json:"updated_at"`
+	Kind      string      `json:"kind"`
+	DNS       DNSSettings `json:"dns"`
 }
 type PendingTUN struct {
-	Deadline   time.Time `json:"deadline"`
-	Previous   Settings  `json:"previous"`
-	WasRunning bool      `json:"was_running"`
+	Deadline       time.Time    `json:"deadline"`
+	Previous       Settings     `json:"previous"`
+	WasRunning     bool         `json:"was_running"`
+	PreviousDNS    *DNSSettings `json:"previous_dns,omitempty"`
+	SubscriptionID string       `json:"subscription_id,omitempty"`
 }
 type State struct {
 	Revision      int64                        `json:"revision"`

@@ -111,6 +111,9 @@ func validateSettings(s Settings, controllerPort int) error {
 	if s.Mode != "rule" && s.Mode != "global" && s.Mode != "direct" {
 		return errors.New("无效的代理模式")
 	}
+	if s.LogLevel != "" && s.LogLevel != "silent" && s.LogLevel != "error" && s.LogLevel != "warning" && s.LogLevel != "info" && s.LogLevel != "debug" {
+		return errors.New("无效日志等级")
+	}
 	if s.AllowLAN && (strings.TrimSpace(s.ProxyUser) == "" || len(s.ProxyPassword) < 8) {
 		return errors.New("外部访问需要独立的代理用户名和至少 8 位密码")
 	}
@@ -203,17 +206,47 @@ func renderConfig(st State, controllerPort int) ([]byte, error) {
 	m["secret"] = st.Secret
 	m["mode"] = s.Mode
 	m["log-level"] = "silent"
-	m["ipv6"] = false
+	if s.LogLevel != "" {
+		m["log-level"] = s.LogLevel
+	}
+	m["ipv6"] = s.IPv6
+	if s.UnifiedDelay != nil {
+		m["unified-delay"] = *s.UnifiedDelay
+	}
 	m["profile"] = map[string]any{"store-selected": false, "store-fake-ip": false}
-	if dns, ok := m["dns"].(map[string]any); ok {
+	dns, _ := m["dns"].(map[string]any)
+	if dns == nil {
+		dns = map[string]any{}
+	}
+	if sub.DNS.Override {
+		if e := validateDNS(sub.DNS); e != nil {
+			return nil, e
+		}
+		dns = map[string]any{"enable": true, "enhanced-mode": "redir-host", "nameserver": sub.DNS.Nameservers, "default-nameserver": sub.DNS.Bootstrap, "proxy-server-nameserver": sub.DNS.ProxyNameservers}
+		if len(sub.DNS.Bootstrap) == 0 {
+			delete(dns, "default-nameserver")
+		}
+		if len(sub.DNS.ProxyNameservers) == 0 {
+			delete(dns, "proxy-server-nameserver")
+		}
+	}
+	if s.TUN {
+		dns["enable"] = true
+		if _, ok := dns["enhanced-mode"]; !ok {
+			dns["enhanced-mode"] = "redir-host"
+		}
+		if _, ok := dns["nameserver"]; !ok {
+			dns["nameserver"] = []string{"system"}
+		}
+	}
+	if len(dns) > 0 {
 		dns["listen"] = "127.0.0.1:1053"
+		dns["ipv6"] = s.IPv6
+		m["dns"] = dns
 	}
 	bypass := []string{"127.0.0.0/8", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "169.254.0.0/16", "::1/128", "fc00::/7", "fe80::/10"}
 	bypass = append(bypass, s.Bypass...)
 	m["tun"] = map[string]any{"enable": s.TUN, "device": "meshport0", "stack": "gvisor", "auto-route": true, "auto-redirect": false, "auto-detect-interface": true, "strict-route": false, "dns-hijack": []string{"any:53", "tcp://any:53"}, "route-exclude-address": bypass, "exclude-uid": []int{0, os.Getuid()}, "iproute2-table-index": 20220, "iproute2-rule-index": 9200}
-	if s.TUN {
-		m["dns"] = map[string]any{"enable": true, "listen": "127.0.0.1:1053", "enhanced-mode": "redir-host", "nameserver": []string{"https://1.1.1.1/dns-query", "https://8.8.8.8/dns-query"}, "default-nameserver": []string{"1.1.1.1", "8.8.8.8"}}
-	}
 	b, e := yaml.Marshal(m)
 	if e != nil {
 		return nil, e

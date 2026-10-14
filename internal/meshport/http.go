@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"golang.org/x/crypto/bcrypt"
+	"gopkg.in/yaml.v3"
 	"io"
 	"meshport/internal/update"
 	"net"
@@ -241,7 +242,7 @@ func subscriptionView(s Subscription, active string) map[string]any {
 	if u, e := url.Parse(s.URL); e == nil && u.Hostname() != "" {
 		source = u.Hostname()
 	}
-	return map[string]any{"id": s.ID, "name": s.Name, "source": source, "kind": s.Kind, "updated_at": s.UpdatedAt, "active": s.ID == active}
+	return map[string]any{"id": s.ID, "name": s.Name, "source": source, "kind": s.Kind, "updated_at": s.UpdatedAt, "active": s.ID == active, "dns": s.DNS}
 }
 func (h *HTTP) read(w http.ResponseWriter, r *http.Request) {
 	st, e := h.App.Store.Load()
@@ -250,6 +251,46 @@ func (h *HTTP) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
+	case "/api/core", "/api/connections", "/api/logs":
+		h.coreRead(w, r, st)
+	case "/api/config":
+		b, err := renderConfig(st, h.App.ControllerPort)
+		if err != nil {
+			problem(w, 409, err)
+			return
+		}
+		var config map[string]any
+		_ = yaml.Unmarshal(b, &config)
+		safe, _ := yaml.Marshal(redactConfig(config))
+		jsonResponse(w, 200, map[string]string{"yaml": string(safe)})
+	case "/api/diagnostics":
+		jsonResponse(w, 200, map[string]any{"version": h.Version, "generated_at": time.Now().UTC(), "service": h.App.Service.Status(), "settings": settingsView(st.Settings), "subscription_count": len(st.Subscriptions), "pending_tun": st.Pending != nil, "controller": "仅监听本机", "paths": map[string]string{"config": "/var/lib/meshport/runtime.yaml", "data": "/var/lib/meshport", "kernel": "/usr/bin/meshport-mihomo", "logs": "Web 日志页（脱敏）"}})
+	case "/api/environment":
+		u := &url.URL{Scheme: "http", Host: fmt.Sprintf("127.0.0.1:%d", st.Settings.HTTPPort)}
+		if st.Settings.AllowLAN {
+			u.User = url.UserPassword(st.Settings.ProxyUser, st.Settings.ProxyPassword)
+		}
+		proxy := u.String()
+		socks := *u
+		socks.Scheme = "socks5h"
+		socks.Host = fmt.Sprintf("127.0.0.1:%d", st.Settings.SOCKSPort)
+		var value string
+		switch r.URL.Query().Get("format") {
+		case "bash":
+			value = "export HTTP_PROXY='" + proxy + "'\nexport HTTPS_PROXY='" + proxy + "'\nexport ALL_PROXY='" + socks.String() + "'\nexport NO_PROXY='localhost,127.0.0.1,::1'"
+		case "powershell":
+			value = "$env:HTTP_PROXY = '" + proxy + "'\n$env:HTTPS_PROXY = '" + proxy + "'\n$env:ALL_PROXY = '" + socks.String() + "'\n$env:NO_PROXY = 'localhost,127.0.0.1,::1'"
+		case "cmd":
+			if strings.Contains(proxy+socks.String(), "%") {
+				problem(w, 400, errors.New("CMD 无法可靠保留编码后的代理凭证，请选择 PowerShell 或 Bash"))
+				return
+			}
+			value = "set \"HTTP_PROXY=" + proxy + "\"\nset \"HTTPS_PROXY=" + proxy + "\"\nset \"ALL_PROXY=" + socks.String() + "\"\nset \"NO_PROXY=localhost,127.0.0.1,::1\""
+		default:
+			problem(w, 400, errors.New("请选择 Bash、PowerShell 或 CMD 格式"))
+			return
+		}
+		jsonResponse(w, 200, map[string]any{"value": value, "contains_credentials": st.Settings.AllowLAN})
 	case "/api/update":
 		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 		defer cancel()
@@ -341,6 +382,66 @@ func (h *HTTP) mutate(w http.ResponseWriter, r *http.Request, old State) error {
 	next := old
 	ok := func() { jsonResponse(w, 200, map[string]bool{"ok": true}) }
 	switch {
+	case r.URL.Path == "/api/backup" && r.Method == "POST":
+		var in struct {
+			Password string `json:"password"`
+		}
+		if e := decode(w, r, &in); e != nil {
+			return e
+		}
+		backup, e := encryptBackup(old, in.Password)
+		if e != nil {
+			return e
+		}
+		jsonResponse(w, 200, backup)
+		return nil
+	case r.URL.Path == "/api/backup/restore" && r.Method == "POST":
+		var in struct {
+			Password string `json:"password"`
+			Backup   Backup `json:"backup"`
+			Revision int64  `json:"revision"`
+		}
+		if e := decode(w, r, &in); e != nil {
+			return e
+		}
+		if in.Revision != old.Revision {
+			problem(w, 409, errors.New("设置已在其他页面更改，请刷新后重试"))
+			return nil
+		}
+		next, e := decryptBackup(in.Backup, in.Password)
+		if e != nil {
+			return e
+		}
+		if e = validateRestore(&next, old, a.ControllerPort); e != nil {
+			return e
+		}
+		if e = a.commitConfig(old, next); e != nil {
+			return e
+		}
+		ok()
+		return nil
+	case r.URL.Path == "/api/core/action" && r.Method == "POST":
+		var in struct {
+			Action string `json:"action"`
+			ID     string `json:"id"`
+		}
+		if e := decode(w, r, &in); e != nil {
+			return e
+		}
+		m, yes := a.Kernel.(*Mihomo)
+		if !yes {
+			return errors.New("当前驱动不支持该操作")
+		}
+		if !a.Service.Status().Running {
+			return errors.New("请先启动代理")
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 55*time.Second)
+		defer cancel()
+		if e := m.CoreAction(ctx, in.Action, in.ID, old.Secret); e != nil {
+			return e
+		}
+		ok()
+		return nil
 	case r.URL.Path == "/api/update" && r.Method == "POST":
 		if _, ok := a.Service.(*SystemService); !ok {
 			return errors.New("一键更新仅支持 Linux systemd 安装")
@@ -474,8 +575,10 @@ func (h *HTTP) mutate(w http.ResponseWriter, r *http.Request, old State) error {
 		return nil
 	case r.URL.Path == "/api/settings" && r.Method == "PUT":
 		var in struct {
-			Settings Settings `json:"settings"`
-			Revision int64    `json:"revision"`
+			Settings       Settings     `json:"settings"`
+			Revision       int64        `json:"revision"`
+			DNS            *DNSSettings `json:"dns,omitempty"`
+			SubscriptionID string       `json:"subscription_id,omitempty"`
 		}
 		if e := decode(w, r, &in); e != nil {
 			return e
@@ -483,6 +586,20 @@ func (h *HTTP) mutate(w http.ResponseWriter, r *http.Request, old State) error {
 		if in.Revision != old.Revision {
 			problem(w, 409, errors.New("设置已在其他页面更改，请刷新后重试"))
 			return nil
+		}
+		if in.DNS != nil {
+			if in.SubscriptionID != old.Active || old.Active == "" {
+				return errors.New("当前订阅已变化，请刷新后重新保存 DNS 设置")
+			}
+			if e := validateDNS(*in.DNS); e != nil {
+				return e
+			}
+			next.Subscriptions = slices.Clone(old.Subscriptions)
+			for i := range next.Subscriptions {
+				if next.Subscriptions[i].ID == old.Active {
+					next.Subscriptions[i].DNS = *in.DNS
+				}
+			}
 		}
 		next.Settings = in.Settings
 		if next.Settings.ProxyPassword == "" {
@@ -513,6 +630,11 @@ func (h *HTTP) mutate(w http.ResponseWriter, r *http.Request, old State) error {
 				return errors.New("请分别修改 Web 端口和开启 TUN")
 			}
 			next.Pending = &PendingTUN{Deadline: time.Now().Add(60 * time.Second), Previous: old.Settings, WasRunning: true}
+			if sub := old.activeSub(); sub != nil && in.DNS != nil {
+				dns := sub.DNS
+				next.Pending.PreviousDNS = &dns
+				next.Pending.SubscriptionID = sub.ID
+			}
 		}
 		var listener net.Listener
 		var e error

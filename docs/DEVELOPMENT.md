@@ -94,6 +94,20 @@ npm run test:e2e
 
 内核 API 和 TUN 配置依据 [Mihomo 官方 API 文档](https://wiki.metacubex.one/api/) 与 [TUN 文档](https://wiki.metacubex.one/config/inbound/tun/)。
 
+## v0.1.2 管理 API
+
+所有接口沿用会话认证、禁止缓存和写入来源校验。`PUT /api/settings` 可附带 `dns`（override、nameservers、bootstrap、proxy_nameservers）与 `subscription_id`，订阅必须为 active，revision 必须一致。订阅 DNS 和全局配置一次验证并回滚。
+
+- `GET /api/core`、`GET /api/connections`：内核版本和实时连接。
+- `GET /api/logs`：最多收集 2 秒 / 100 条日志并脱敏；前端仅在内存保留 300 条。
+- `POST /api/core/action`：固定 dns-flush、geodata、connections-close 操作，后者可指定 id。
+- `GET /api/config`、`GET /api/diagnostics`：脱敏配置与诊断。
+- `GET /api/environment?format=bash|powershell|cmd`：服务器本机代理变量，含凭证时前端确认后复制。
+- `POST /api/backup`：password 参数，返回加密 JSON。
+- `POST /api/backup/restore`：password、backup、revision 参数。解密、订阅、DNS、端口校验后通过 commitConfig 应用，保留管理凭证和 Web 端口，关闭 TUN。
+
+内核接口和 DNS 语义依据 [官方 API](https://wiki.metacubex.one/api/) 和 [官方 DNS 配置](https://wiki.metacubex.one/config/dns/)。
+
 ## 发布
 
 发布前重新生成第三方许可汇总：`python scripts/generate-notices.py`（需要已安装前端依赖和 Go）。然后运行构建脚本，将安装包、`SHA256SUMS` 和 `INSTALL-TARGETS.tsv` 上传到对应版本的 GitHub Release。构建脚本只将本版本的安装包写入校验清单。

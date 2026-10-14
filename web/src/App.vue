@@ -36,14 +36,19 @@ import {
   type Settings,
   type Proxy,
   type Subscription,
+  type DNSSettings,
 } from "./api";
 import Field from "./components/Field.vue";
 import SecretField from "./components/SecretField.vue";
 import Dialog from "./components/Dialog.vue";
 import ModeControl from "./components/ModeControl.vue";
 import SelectField from "./components/SelectField.vue";
+import TextAreaField from "./components/TextAreaField.vue";
 import SiteTests from "./components/SiteTests.vue";
 import VersionPanel from "./components/VersionPanel.vue";
+import SettingsTools from "./components/SettingsTools.vue";
+import OperationsPanel from "./components/OperationsPanel.vue";
+import { preferences } from "./composables/usePreferences";
 import { useDiagnostics } from "./composables/useDiagnostics";
 import { useForm, passwordRule } from "./composables/useForm";
 
@@ -52,6 +57,8 @@ const pages = [
   { id: "subscriptions", name: "订阅", icon: Layers },
   { id: "nodes", name: "节点", icon: Network },
   { id: "tests", name: "测试", icon: Gauge },
+  { id: "connections", name: "连接", icon: Cable },
+  { id: "logs", name: "日志", icon: Layers },
   { id: "settings", name: "设置", icon: Settings2 },
 ];
 const route = ref("overview"),
@@ -84,6 +91,64 @@ const authPassword = ref(""),
   group = ref(""),
   now = ref(Date.now()),
   bypassText = ref("");
+const dnsOverride = ref(false),
+  dnsNameservers = ref(""),
+  dnsBootstrap = ref(""),
+  dnsProxyNameservers = ref("");
+function lines(value: string) {
+  return value
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+function normalizeDNS(dns?: DNSSettings): DNSSettings {
+  return {
+    override: dns?.override || false,
+    nameservers: dns?.nameservers || [],
+    bootstrap: dns?.bootstrap || [],
+    proxy_nameservers: dns?.proxy_nameservers || [],
+  };
+}
+function dnsValue(): DNSSettings {
+  if (!dnsOverride.value)
+    return { ...normalizeDNS(activeSub.value?.dns), override: false };
+  return {
+    override: dnsOverride.value,
+    nameservers: lines(dnsNameservers.value),
+    bootstrap: lines(dnsBootstrap.value),
+    proxy_nameservers: lines(dnsProxyNameservers.value),
+  };
+}
+function dnsPreset(kind: string) {
+  dnsOverride.value = true;
+  if (kind === "domestic") {
+    dnsNameservers.value =
+      "https://dns.alidns.com/dns-query\nhttps://doh.pub/dns-query";
+    dnsBootstrap.value = "223.5.5.5\n119.29.29.29";
+    dnsProxyNameservers.value = dnsNameservers.value;
+  } else if (kind === "global") {
+    dnsNameservers.value =
+      "https://1.1.1.1/dns-query\nhttps://8.8.8.8/dns-query";
+    dnsBootstrap.value = "1.1.1.1\n8.8.8.8";
+    dnsProxyNameservers.value = dnsNameservers.value;
+  } else {
+    dnsNameservers.value = "system";
+    dnsBootstrap.value = "";
+    dnsProxyNameservers.value = "system";
+  }
+}
+const unifiedDelay = computed({
+  get: () =>
+    draft.value?.unified_delay == null
+      ? "inherit"
+      : draft.value.unified_delay
+        ? "on"
+        : "off",
+  set: (value: string) => {
+    if (draft.value)
+      draft.value.unified_delay = value === "inherit" ? null : value === "on";
+  },
+});
 const form = useForm();
 const siteBusy = ref(false),
   updateBusy = ref(false);
@@ -103,9 +168,14 @@ const allTestNodes = computed(() =>
     .filter(
       (p) =>
         !p.all?.length &&
-        !["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"].includes(
-          p.name,
-        ),
+        ![
+          "Direct",
+          "Reject",
+          "RejectDrop",
+          "Pass",
+          "PassRule",
+          "Compatible",
+        ].includes(p.type),
     )
     .map((p) => p.name),
 );
@@ -145,7 +215,10 @@ const isDirty = computed(
         has_proxy_password: undefined,
       }) ||
       !!draft.value.proxy_password ||
-      bypassText.value !== state.value.settings.bypass.join("\n")),
+      bypassText.value !== state.value.settings.bypass.join("\n") ||
+      (activeSub.value &&
+        JSON.stringify(dnsValue()) !==
+          JSON.stringify(normalizeDNS(activeSub.value.dns)))),
 );
 const seconds = computed(() =>
   state.value?.pending_tun
@@ -203,6 +276,11 @@ function copyDraft() {
   draftRevision.value = state.value.revision;
   draft.value!.proxy_password = "";
   bypassText.value = draft.value!.bypass.join("\n");
+  const dns = normalizeDNS(activeSub.value?.dns);
+  dnsOverride.value = dns.override;
+  dnsNameservers.value = dns.nameservers.join("\n");
+  dnsBootstrap.value = dns.bootstrap.join("\n");
+  dnsProxyNameservers.value = dns.proxy_nameservers.join("\n");
 }
 async function refresh(force = false) {
   if (refreshing && !force) return;
@@ -485,6 +563,26 @@ async function saveSettings(confirmed = false) {
       rules.proxyPassword = (v) =>
         String(v).length >= 8 ? "" : "代理密码至少 8 位";
   }
+  if (dnsOverride.value && activeSub.value) {
+    rules.dnsNameservers = (v) =>
+      lines(String(v)).length ? "" : "请输入至少一个解析上游，或选择一个预设";
+    for (const name of [
+      "dnsNameservers",
+      "dnsBootstrap",
+      "dnsProxyNameservers",
+    ]) {
+      const required = rules[name];
+      rules[name] = (v) =>
+        required?.(v) ||
+        (lines(String(v)).length > 8
+          ? "每组最多 8 个 DNS 上游"
+          : lines(String(v)).some(
+                (line) => /\s|#|@|\?/.test(line) || /^(file|http):/.test(line),
+              )
+            ? "请填写 IP、system 或 udp/tcp/tls/https 地址，不支持凭证与附加参数"
+            : "");
+    }
+  }
   if (
     !(await form.validate(
       {
@@ -493,6 +591,9 @@ async function saveSettings(confirmed = false) {
         socksPort: draft.value.socks_port,
         proxyUser: draft.value.proxy_user,
         proxyPassword: draft.value.proxy_password,
+        dnsNameservers: dnsNameservers.value,
+        dnsBootstrap: dnsBootstrap.value,
+        dnsProxyNameservers: dnsProxyNameservers.value,
       },
       rules,
     ))
@@ -525,7 +626,14 @@ async function saveSettings(confirmed = false) {
   };
   delete settings.has_proxy_password;
   const ok = await mutate(
-    () => api("/settings", "PUT", { settings, revision: draftRevision.value }),
+    () =>
+      api("/settings", "PUT", {
+        settings,
+        revision: draftRevision.value,
+        ...(activeSub.value
+          ? { dns: dnsValue(), subscription_id: activeSub.value.id }
+          : {}),
+      }),
     "设置已保存",
   );
   if (ok) {
@@ -591,6 +699,8 @@ async function selectNode(name: string) {
   );
 }
 onMounted(async () => {
+  if (!location.hash && pages.some((p) => p.id === preferences.startPage))
+    history.replaceState(null, "", "#" + preferences.startPage);
   syncHash();
   document.title = "Meshport · " + title.value;
   window.addEventListener("hashchange", routeChanged);
@@ -720,6 +830,8 @@ onBeforeUnmount(() => {
                 subscriptions: "保存多份订阅，每次启用一份。",
                 nodes: "为当前策略组选择合适的连接。",
                 tests: "检查当前出口的网站连通性与地区支持。",
+                connections: "查看实际连接、流量与内核内存。",
+                logs: "读取实时内核事件，辅助排查连接问题。",
                 settings: "按照服务器的需要，配置每一个入口。",
               }[route]
             }}
@@ -1220,6 +1332,42 @@ onBeforeUnmount(() => {
               <h2>代理设置</h2>
               <p>模式决定流量分流；TUN 决定是否接管系统流量。</p>
               <ModeControl v-model="draft.mode" :disabled="busy" />
+              <label class="toggle-row"
+                ><div>
+                  <strong>IPv6</strong
+                  ><small
+                    >允许内核与 DNS 使用 IPv6；需要服务器具备可用的 IPv6
+                    网络</small
+                  >
+                </div>
+                <input type="checkbox" v-model="draft.ipv6" :disabled="busy"
+              /></label>
+              <div class="field-grid">
+                <SelectField
+                  id="unifiedDelay"
+                  v-model="unifiedDelay"
+                  label="统一延迟"
+                  :disabled="busy"
+                  :options="[
+                    { value: 'inherit', label: '跟随订阅' },
+                    { value: 'on', label: '启用：消除握手差异' },
+                    { value: 'off', label: '关闭' },
+                  ]"
+                /><SelectField
+                  id="logLevel"
+                  v-model="draft.log_level"
+                  label="内核日志等级"
+                  :disabled="busy"
+                  :options="[
+                    { value: '', label: '默认：静默' },
+                    { value: 'silent', label: '静默' },
+                    { value: 'error', label: '错误' },
+                    { value: 'warning', label: '警告' },
+                    { value: 'info', label: '信息' },
+                    { value: 'debug', label: '调试' },
+                  ]"
+                />
+              </div>
               <div class="field-grid">
                 <Field
                   id="httpPort"
@@ -1272,6 +1420,81 @@ onBeforeUnmount(() => {
                   "
                 />
               </div>
+            </div>
+            <div class="panel">
+              <h2>DNS 覆写</h2>
+              <p>
+                {{
+                  activeSub
+                    ? "仅对「" + activeSub.name + "」生效，切换订阅后独立保存。"
+                    : "请先启用一个订阅。"
+                }}
+              </p>
+              <label class="toggle-row"
+                ><div>
+                  <strong>使用自定义 DNS</strong
+                  ><small>关闭时跟随订阅；TUN 不再强制改成海外 DNS。</small>
+                </div>
+                <input
+                  type="checkbox"
+                  v-model="dnsOverride"
+                  :disabled="busy || !activeSub"
+              /></label>
+              <template v-if="dnsOverride && activeSub">
+                <div class="test-actions dns-presets">
+                  <button
+                    type="button"
+                    class="outline"
+                    :disabled="busy"
+                    @click="dnsPreset('domestic')"
+                  >
+                    国内可直连 DoH</button
+                  ><button
+                    type="button"
+                    class="outline"
+                    :disabled="busy"
+                    @click="dnsPreset('global')"
+                  >
+                    Cloudflare / Google</button
+                  ><button
+                    type="button"
+                    class="outline"
+                    :disabled="busy"
+                    @click="dnsPreset('system')"
+                  >
+                    系统 DNS
+                  </button>
+                </div>
+                <TextAreaField
+                  id="dnsNameservers"
+                  v-model="dnsNameservers"
+                  label="解析上游"
+                  :disabled="busy"
+                  :error="errors.dnsNameservers"
+                  hint="每行一个 IP、system 或 udp/tcp/tls/https 地址，最多 8 个。"
+                />
+                <div class="field-grid">
+                  <TextAreaField
+                    id="dnsBootstrap"
+                    v-model="dnsBootstrap"
+                    label="引导 DNS"
+                    :disabled="busy"
+                    :error="errors.dnsBootstrap"
+                    hint="用于解析 DoH 上游的域名，必须使用 IP；留空使用内核默认值。"
+                  /><TextAreaField
+                    id="dnsProxyNameservers"
+                    v-model="dnsProxyNameservers"
+                    label="节点域名 DNS"
+                    :disabled="busy"
+                    :error="errors.dnsProxyNameservers"
+                    hint="专门解析代理节点地址；留空跟随解析上游。"
+                  />
+                </div>
+                <p class="test-explanation">
+                  DNS 需要能从这台服务器直连访问。国内网络优先使用国内 DoH
+                  预设；点击“保存设置”后生效。
+                </p>
+              </template>
             </div>
             <div class="panel">
               <h2>TUN 与绕行</h2>
@@ -1352,6 +1575,25 @@ onBeforeUnmount(() => {
             <p>然后回到后台，关闭 TUN 并保存，再启动代理。</p>
           </aside>
         </section>
+        <SettingsTools
+          v-if="route === 'settings'"
+          :state="state"
+          :disabled="busy"
+          :dirty="!!isDirty"
+          :execute="mutate"
+          @restored="copyDraft"
+        />
+        <OperationsPanel
+          v-if="route === 'connections' || route === 'logs'"
+          :key="route"
+          :mode="route"
+          :running="state.service.running"
+          :disabled="busy"
+          :pending="!!state.pending_tun"
+          :log-level="state.settings.log_level"
+          :execute="mutate"
+          @expired="expired"
+        />
         <VersionPanel
           v-show="route === 'settings'"
           :disabled="busy"

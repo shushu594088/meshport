@@ -16,7 +16,7 @@ Single administrator, zh-CN, operational language. Job: manage Linux server subs
 
 ## Visual contract
 
-DESIGN.md owns visual intent and tokens; web/src/style.css implements them. Shared Vue primitives own repeated behavior. Light theme with reduced-motion and forced-colors paths.
+DESIGN.md owns visual intent and tokens; web/src/style.css implements them. Shared Vue primitives own repeated behavior. Light/dark/system theme with reduced-motion and forced-colors paths.
 
 ## Canonical UI Map
 
@@ -48,7 +48,7 @@ Subscriptions max 64 server-side. Nodes and subscriptions show 20 records per pa
 
 ## Navigation and responsive behavior
 
-Five hash routes: overview, subscriptions, nodes, tests, settings. Titles follow the active route. Settings drafts warn before in-app route changes via shared Dialog; beforeunload handles browser unload only. Nodes use cards so long identifiers wrap. Below 800px horizontal navigation replaces sidebar; below 560px forms stack.
+Seven hash routes: overview, subscriptions, nodes, tests, connections, logs, settings. Titles follow the active route. Settings drafts warn before in-app route changes via shared Dialog; beforeunload handles browser unload only. Nodes use cards so long identifiers wrap. Below 800px horizontally scrollable navigation replaces sidebar; below 560px forms stack.
 
 ## Overlays and feedback
 
@@ -67,3 +67,11 @@ useForm is the shared validation adapter. Forms use novalidate, first invalid fi
 ## Verification
 
 Go unit/integration tests cover authentication, state persistence, config ownership and failure rollback. tests/e2e covers browser CRUD, settings, errors, keyboard and mobile layout; server2 acceptance covers real Mihomo, systemd independence, ports and TUN rollback. npm --prefix web run typecheck and build are required. The frontend premium strict auditor and DESIGN.md lint verify static ownership and tokens; runtime evidence remains separate.
+
+## DNS, maintenance and monitoring
+
+DNS settings belong to the active subscription and participate in the same revision-checked save as global proxy settings. Default inherits subscription DNS. IPv6 and log level are global, unified delay can inherit. Failed kernel apply preserves persisted settings and edited fields.
+
+SettingsTools.vue owns theme, start page and environment format; only these nonsecret preferences enter localStorage. It reuses the shared mutation wrapper and Dialog. Credential export requires confirmation; unavailable clipboard falls back to a named local file. Config and diagnostic output are redacted. Backup password uses SecretField and is never persisted. Restore is disabled with dirty settings or pending TUN, confirms overwrite, retains management credentials/port and disables TUN.
+
+OperationsPanel.vue owns live monitoring and close confirmations. Reads cancel on route exit, pause or stopped kernel; sequencing suppresses stale results. Errors preserve last data and offer retry; 401 opens login. Connections use 20-item pages from the complete snapshot with IME-safe local filtering. Exception: monitoring search/page stay out of URL because a continuously changing snapshot makes saved positions unreliable; fields clear on exit. Logs collect only live events while the route is open, retain at most 300 entries in memory and clear on exit. Traffic and memory show actual kernel values.

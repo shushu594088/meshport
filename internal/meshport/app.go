@@ -400,6 +400,7 @@ func (a *App) Guard() error {
 	}
 	if st.Pending != nil {
 		st.Settings = st.Pending.Previous
+		restorePendingDNS(&st, st.Pending)
 		st.Pending = nil
 		st.Notice = "检测到未确认的 TUN 配置，已在内核启动前恢复"
 		b, e := renderConfig(st, a.ControllerPort)
@@ -432,6 +433,7 @@ func (a *App) rollbackTUN(st State) error {
 		return e
 	}
 	st.Settings = pending.Previous
+	restorePendingDNS(&st, pending)
 	st.Pending = nil
 	st.Notice = "TUN 未在 60 秒内确认，已自动恢复启用前配置"
 	b, e := renderConfig(st, a.ControllerPort)

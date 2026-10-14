@@ -10,6 +10,15 @@ export type Settings = {
   autostart: boolean;
   tun: boolean;
   bypass: string[];
+  ipv6: boolean;
+  unified_delay?: boolean | null;
+  log_level: string;
+};
+export type DNSSettings = {
+  override: boolean;
+  nameservers: string[];
+  bootstrap: string[];
+  proxy_nameservers: string[];
 };
 export type Subscription = {
   id: string;
@@ -18,6 +27,7 @@ export type Subscription = {
   kind: string;
   active: boolean;
   updated_at: string;
+  dns?: DNSSettings;
 };
 export type State = {
   revision: number;

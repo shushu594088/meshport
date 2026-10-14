@@ -44,7 +44,7 @@ The tokens above map to web/src/style.css :root variables, one-to-one. CSS is th
 
 ## Colors
 
-Cool gray surfaces, white work panels and deep blue text keep operational controls calm. Teal identifies the selected page and primary actions. Green means running, amber means awaiting confirmation, red means failed or destructive. Always include a text label. Only a light theme is supported; forced-colors uses system colors.
+Cool gray surfaces, white work panels and deep blue text keep operational controls calm. Teal identifies the selected page and primary actions. Green means running, amber means awaiting confirmation, red means failed or destructive. Always include a text label. Light, dark and system-following themes are supported; forced-colors uses system colors. Dark adapter tokens: primary #74C5DF, background #101B24, surface #192935, ink #E5EDF3, muted #A9BDCA, border #405767, success #7ACEAA, warning #E6BD78, danger #F19BA0. Dark scrollbar tokens: thumb #627D8F, track #101B24, hover #86A3B5, active #A9BDCA. State tints use color-mix with the current surface.
 
 ## Typography
 
@@ -78,3 +78,5 @@ Motion is limited to a 150ms state transition and a spinner; prefers-reduced-mot
 - Do explain disabled actions, preserve failed form input and acknowledge only server-confirmed changes.
 - Don't display secret keys, complete subscription URLs or proxy passwords in lists or messages.
 - Don't use color alone, unbounded node grids, or decorative motion for network changes.
+
+SettingsTools owns browser preferences and confirmations for credential export, encrypted backup/restore and GeoData. OperationsPanel owns cancellation and bounded monitoring: 20 connections per page, 300 recent log events in a read-only scroll region. TextAreaField is the shared multiline form primitive. DNS scope names the active subscription and shares the settings save/discard flow.
