@@ -62,6 +62,9 @@ func (m *Mihomo) Validate(b []byte) error {
 	return nil
 }
 func (m *Mihomo) request(method, path, secret string, body any, out any) error {
+	return m.requestContext(context.Background(), method, path, secret, body, out)
+}
+func (m *Mihomo) requestContext(ctx context.Context, method, path, secret string, body any, out any) error {
 	var data []byte
 	var e error
 	if body != nil {
@@ -70,7 +73,7 @@ func (m *Mihomo) request(method, path, secret string, body any, out any) error {
 			return e
 		}
 	}
-	req, e := http.NewRequest(method, m.Address+path, bytes.NewReader(data))
+	req, e := http.NewRequestWithContext(ctx, method, m.Address+path, bytes.NewReader(data))
 	if e != nil {
 		return e
 	}
@@ -120,5 +123,13 @@ func (m *Mihomo) Proxies(secret string) (map[string]Proxy, error) {
 }
 func (m *Mihomo) Select(group, name, secret string) error {
 	return m.request("PUT", "/proxies/"+url.PathEscape(group), secret, map[string]string{"name": name}, nil)
+}
+func (m *Mihomo) Delay(ctx context.Context, name, secret string) (int, error) {
+	var result struct {
+		Delay int `json:"delay"`
+	}
+	query := url.Values{"url": {"https://www.gstatic.com/generate_204"}, "timeout": {"5000"}, "expected": {"204"}}
+	e := m.requestContext(ctx, "GET", "/proxies/"+url.PathEscape(name)+"/delay?"+query.Encode(), secret, nil, &result)
+	return result.Delay, e
 }
 func runtimePath(dir string) string { return filepath.Join(dir, "runtime.yaml") }

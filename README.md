@@ -16,9 +16,11 @@ Meshport 是一个面向个人服务器和单管理员的轻量级代理管理�
 
 Meshport 适合需要在 Linux 服务器上管理代理、又希望通过浏览器完成日常操作的用户。
 
-- **浏览器管理**：概览、订阅、节点、设置四个页面，展示运行状态、当前订阅和操作结果。
+- **浏览器管理**：概览、订阅、节点、测试、设置五个页面，展示运行状态、当前订阅和操作结果。
 - **订阅管理**：支持 Mihomo / Clash YAML 订阅地址及手动粘贴，可保存多份订阅，每次启用一份。
 - **节点选择**：展示策略组、节点和当前选择；手动选择结果持久化保存。
+- **节点测速与网站测试**：一键测试全部节点延迟，支持单项重测与取消；检查 12 个常用网站的连通性和可识别的地区支持信号。
+- **版本更新**：Web 检查最新稳定版并一键更新，也可运行 `sudo meshport update`；校验发布包后更新程序，保留配置和订阅。
 - **代理控制**：启动、停止、重启代理，单独设置代理开机自启。
 - **三种模式**：规则、全局、直连；TUN 使用独立开关。
 - **默认仅本机代理**：HTTP / SOCKS5 默认监听回环地址；外部访问需要独立认证。
@@ -26,7 +28,7 @@ Meshport 适合需要在 Linux 服务器上管理代理、又希望通过浏览�
 - **TUN 自动恢复**：开启后需在 60 秒内确认可访问，否则自动恢复；恢复计时器不依赖浏览器或后台进程持续在线。
 - **原生部署**：提供 amd64、arm64 安装包及安装、卸载脚本。
 
-当前版本为 **v0.1.0**。Ubuntu 22.04 amd64 已完成真实内核、浏览器交互、端口迁移、TUN 回滚和卸载重装验证。Debian、arm64 硬件与整机重启尚未完成实机验收，详见[验证记录](docs/VERIFICATION.md)。
+当前版本为 **v0.1.1**，新增节点测速、网站测试及 Web / 命令行更新。[查看本次更新内容](docs/RELEASE-v0.1.1.md) · [完整更新记录](CHANGELOG.md)。v0.1.0 在 Ubuntu 22.04 amd64 已完成真实内核、端口迁移、TUN 回滚和卸载重装验证。新增更新流程尚未完成真实 systemd 升级验收，详见[验证记录](docs/VERIFICATION.md)。
 
 第一版不包含 Base64 / 通用节点 URI 转换、订阅节点合并、Docker 部署、多用户或内置证书管理。
 
@@ -48,11 +50,11 @@ curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.
 
 这条命令保持不变。后续增加 CentOS 等发行版或发布新版本时，脚本根据 Release 的系统匹配清单自动选择对应安装包；当前实际支持 Ubuntu 和 Debian，其他系统会明确提示暂不支持。
 
-已有安装不会被直接覆盖；升级请先保留数据卸载。首次安装可指定后台端口或固定版本：
+已有安装不会被安装脚本直接覆盖；v0.1.1 起可使用 Web 或 `sudo meshport update` 更新。v0.1.0 首次升级需先保留数据卸载，再安装新版本。首次安装可指定后台端口或固定版本：
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --port 8889
-curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --version v0.1.0
+curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.sh | sudo bash -s -- --version v0.1.1
 ```
 
 需要本机已有 curl 和 sudo。root 账号可将 `sudo bash` 改为 `bash`。
@@ -69,13 +71,13 @@ curl -fsSL https://raw.githubusercontent.com/shushu594088/meshport/main/install.
 
 ### 手动下载安装包（可选）
 
-在要安装 Meshport 的服务器上执行。以下命令自动识别架构，下载 **v0.1.0** 并校验安装包：
+在要安装 Meshport 的服务器上执行。以下命令自动识别架构，下载 **v0.1.1** 并校验安装包：
 
 ```bash
 sudo apt update
 sudo apt install -y curl gzip coreutils iproute2 sudo ca-certificates
 
-VERSION=0.1.0
+VERSION=0.1.1
 case "$(uname -m)" in
   x86_64) ARCH=amd64 ;;
   aarch64|arm64) ARCH=arm64 ;;
@@ -149,6 +151,26 @@ sudo cat /var/lib/meshport/init-token
 在 **概览** 页面点击 **启动代理**，再进入 **节点** 页面查看策略组与节点。
 
 手动选择策略组可以切换节点；自动策略组展示内核的选择结果。内核停止时，节点操作不可用，后台仍能管理订阅和设置。
+
+### 节点测速、网站测试与版本更新
+
+![网站测试页面示例](docs/images/tests.png)
+
+*界面示例；图中结果来自模拟浏览器测试，并非实际解锁结论。*
+
+- 在 **节点 → 一键测速** 测试全部实际节点，包括其他策略组、筛选外和分页外节点。每个节点也有独立 **测速** 按钮。测试使用 Google 204 端点，超时 5 秒，最多 4 项并发，不切换当前节点；这测量连接延迟，不测下载带宽。
+- 在 **测试 → 测试全部** 检查哔哩哔哩大陆/港澳台、Bahamut Anime、ChatGPT Web、Claude、Disney+、Gemini、Netflix、Prime Video、Spotify、TikTok、YouTube Premium。结果区分支持、不支持、可访问、测试失败，显示可识别的地区、耗时和测试时间。部分网站只确认网页连通性；不会把 HTTP 200 自动认定为播放或账号解锁。各网站走服务器当前模式与规则，可能使用不同出口。
+- 在 **设置 → 版本与更新 → 检查最新版本** 查看 GitHub 最新稳定版，发现新版本后 **一键更新**。确认后下载匹配系统/架构的发布包，检查 SHA-256、包内文件和程序版本，然后更新 Meshport、辅助程序及服务单元。保留管理员密码、订阅、设置、会话和当前 Mihomo 二进制；只重启管理后台，独立运行的代理不主动停止。页面自动等待重新连接。TUN 待确认或设置未保存时不能更新。
+
+也可以通过 SSH 执行：
+
+```bash
+sudo meshport update
+```
+
+仅支持 Linux systemd 安装；下载和校验失败不替换程序，安装或后台健康检查失败时尝试恢复原程序。查看更新任务：`sudo systemctl status meshport-update`，日志：`sudo journalctl -u meshport-update`。更新来源固定为本项目 GitHub 最新稳定 Release；不接受任意下载地址，不执行包内安装脚本。
+
+v0.1.0 尚无更新命令，首次升级到 v0.1.1 需先按原方法保留数据卸载，再安装 v0.1.1 发布包；之后可使用 Web 和命令行更新。发布包必须包含 `INSTALL-TARGETS.tsv` 对应资产和 `SHA256SUMS`。
 
 ### 5. 在应用中使用代理
 
@@ -291,7 +313,7 @@ sudo bash uninstall.sh
 
 通过一键入口安装的用户，可直接执行 `sudo bash /usr/libexec/meshport-uninstall`；加 `--purge` 可明确清除全部 Meshport 数据。
 
-默认停止服务并移除程序，**保留管理员密码、订阅和设置**。升级时先默认卸载，再使用新版本安装包安装；重新安装保留已有数据和代理自启选项，不会在安装过程中自动启动代理。
+默认停止服务并移除程序，**保留管理员密码、订阅和设置**。v0.1.0 首次升级需要默认卸载后安装 v0.1.1；v0.1.1 及以后优先使用 Web 一键更新或 `sudo meshport update`。保留数据重新安装时，原有数据和代理自启选项仍会保留，安装过程不会自动启动代理。
 
 明确需要删除全部 Meshport 数据时：
 
@@ -314,8 +336,8 @@ bash scripts/build.sh
 生成：
 
 ```text
-build/meshport-0.1.0-linux-amd64.tar.gz
-build/meshport-0.1.0-linux-arm64.tar.gz
+build/meshport-0.1.1-linux-amd64.tar.gz
+build/meshport-0.1.1-linux-arm64.tar.gz
 build/SHA256SUMS
 ```
 

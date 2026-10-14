@@ -8,7 +8,7 @@ meshport_usage() {
 Meshport 一键安装
 用法：sudo bash install.sh [--port 8888] [--version v0.1.0]
 默认从 GitHub 下载最新稳定 Release，按系统、版本及架构选择安装包。
-重复安装不会覆盖已有程序或数据；升级请先使用保留数据的卸载方式。
+重复安装不会覆盖已有程序或数据；v0.1.1 起可用 sudo meshport update 升级，旧版请先保留数据卸载。
 EOF
 }
 meshport_arch() {
@@ -83,7 +83,7 @@ meshport_main() (
  . /etc/os-release
  local distro=${ID:-unknown} os_version=${VERSION_ID:-unknown}
  [[ -d /run/systemd/system ]] || { meshport_error '需要运行中的 systemd'; return 1; }
- [[ ! -e /usr/bin/meshport ]] || { meshport_error '已安装 Meshport；如需升级，请先保留数据卸载。现有服务和数据未改动。'; return 1; }
+ [[ ! -e /usr/bin/meshport ]] || { meshport_error '已安装 Meshport；v0.1.1 起请用 sudo meshport update，旧版请先保留数据卸载。现有服务和数据未改动。'; return 1; }
  local arch release_root='https://github.com/shushu594088/meshport/releases' tag effective_url
  arch=$(meshport_arch "$(uname -m)")
  # curl is needed to fetch this entry in the recommended command; handle local-file invocation too.

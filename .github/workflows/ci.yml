@@ -37,10 +37,23 @@ jobs:
           test ! -e /usr/bin/meshport
           test ! -e /usr/libexec/meshport-uninstall
           test ! -d /var/lib/meshport
+      - name: Install the current build and check the update command
+        run: |
+          if ! sudo bash build/meshport-linux-amd64/install.sh 18888 > /tmp/meshport-current-install.log 2>&1; then
+            sed -E 's/(初始化凭[据证].*[：:]).*/\1[REDACTED]/' /tmp/meshport-current-install.log
+            exit 1
+          fi
+          test "$(meshport version)" = "$(go run ./cmd/meshport version)"
+          test "$(systemctl is-active meshport)" = active
+          curl --fail --silent http://127.0.0.1:18888/api/auth | grep '"initialized":false'
+          sudo meshport update
+          test "$(systemctl is-active meshport)" = active
+          curl --fail --silent http://127.0.0.1:18888/api/auth | grep '"initialized":false'
+          sudo bash build/meshport-linux-amd64/uninstall.sh --purge
       - uses: actions/upload-artifact@v4
         with:
           name: meshport-linux-packages
           path: |
-            build/meshport-0.1.0-linux-*.tar.gz
+            build/meshport-*-linux-*.tar.gz
             build/SHA256SUMS
             build/INSTALL-TARGETS.tsv

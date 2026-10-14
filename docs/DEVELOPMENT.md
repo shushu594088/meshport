@@ -45,6 +45,12 @@ systemd 单元不能添加使非 root 进程隐式启用 `NoNewPrivileges` 的 s
 | POST | `/api/service` | start、stop、restart |
 | GET | `/api/nodes` | 内核策略组、节点和选择 |
 | PUT | `/api/nodes/select` | 选择手动策略组的合法成员 |
+| GET | `/api/tests/sites` | 固定网站测试清单 |
+| POST | `/api/tests/delay` | 按 name 测试节点延迟，固定 Google 204、5s 超时 |
+| POST | `/api/tests/site` | 按 id 测试网站，走本机 HTTP 代理与当前规则 |
+| GET | `/api/update` | 检查 GitHub 最新稳定版本，不安装 |
+| GET | `/api/update/status` | 本机版本与更新任务状态 |
+| POST | `/api/update` | 固定 sudo helper 启动独立 systemd 更新任务 |
 | POST | `/api/tun/confirm` | 在期限内确认可访问 |
 | PUT | `/api/password` | 校验原密码、设置新密码并撤销所有会话 |
 
@@ -59,6 +65,16 @@ bash scripts/build.sh
 ```
 
 浏览器验收针对已完成初始化的测试实例，默认地址 `http://127.0.0.1:18888`。可设置 `MESHPORT_TEST_URL` 和 `MESHPORT_TEST_PASSWORD`。测试会创建、启用和删除验收订阅，只应对测试数据运行。
+
+本机没有真实 Linux 内核时，可在终端设置 `MESHPORT_BROWSER_FIXTURE=1` 后运行 `go test ./internal/meshport -run '^TestBrowserFixtureServer$' -v -timeout 12m`，它提供仅监听 127.0.0.1:18888 的临时后台，十分钟后结束。模拟内核和服务不执行系统命令、不发起公网探测；浏览器使用测试密码 `meshport-test-password-2026`。新增 diagnostics.spec.ts 模拟各网站响应和更新重连，以验证 UI 状态；这不能代替真实网站与 systemd 更新验收。
+
+## 诊断与更新
+
+诊断 POST 在完成登录与同源检查后独立处理，最多四个并发请求，不持有配置变更锁；请求取消会传递到内核延迟 API 或网站 HTTP 请求。结果携带配置 revision，测试期间 revision 变化返回 409。站点目的地址由服务器固定，用户不能指定任意 URL。网站请求必须通过 127.0.0.1 的 HTTP 代理；开启外部认证时使用已有凭证，不回退到直连，不返回凭证或原始网络错误。结果只在浏览器内存中暂存。
+
+更新代码位于 internal/update。CLI `sudo meshport update` 检查稳定版、下载系统清单/校验和/安装包、拒绝路径穿越、链接、重复文件和错误架构，验证新程序的版本后才停止管理后台。文件替换使用原子 rename；保存原文件及权限，失败时恢复原程序并启动原后台。代理内核二进制与数据目录均不更新。该更新格式不支持数据库不兼容迁移；需要迁移的未来版本应扩展迁移/备份协议后再发布。
+
+Web POST 通过固定 `meshport-helper update` 操作运行 `systemd-run --unit=meshport-update /usr/bin/meshport update`。任务独立于 Web 服务，/run/meshport-update.lock 阻止同时更新；状态保存在 /var/lib/meshport/update-status.json，供重连页面读取。sudoers 只增加这个固定操作，不接受路径、URL 或任意参数。首次从 v0.1.0 升级需保留数据卸载重装，因为旧辅助程序及命令行没有更新功能。
 
 ```bash
 cd web

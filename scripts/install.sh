@@ -44,7 +44,7 @@ install -m 755 "$tmp/mihomo" /usr/bin/meshport-mihomo
 install -m 644 "$base/meshport.service" /etc/systemd/system/meshport.service
 install -m 644 "$base/meshport-mihomo.service" /etc/systemd/system/meshport-mihomo.service
 cat > "$tmp/sudoers" <<'EOF'
-meshport ALL=(root) NOPASSWD: /usr/libexec/meshport-helper start, /usr/libexec/meshport-helper stop, /usr/libexec/meshport-helper restart, /usr/libexec/meshport-helper enable, /usr/libexec/meshport-helper disable, /usr/libexec/meshport-helper status, /usr/libexec/meshport-helper preflight, /usr/libexec/meshport-helper arm, /usr/libexec/meshport-helper disarm
+meshport ALL=(root) NOPASSWD: /usr/libexec/meshport-helper start, /usr/libexec/meshport-helper stop, /usr/libexec/meshport-helper restart, /usr/libexec/meshport-helper enable, /usr/libexec/meshport-helper disable, /usr/libexec/meshport-helper status, /usr/libexec/meshport-helper preflight, /usr/libexec/meshport-helper arm, /usr/libexec/meshport-helper disarm, /usr/libexec/meshport-helper update
 EOF
 visudo -cf "$tmp/sudoers" >/dev/null
 install -m 440 "$tmp/sudoers" /etc/sudoers.d/meshport

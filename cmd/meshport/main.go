@@ -7,6 +7,7 @@ import (
 	"log"
 	"meshport/internal/meshport"
 	"meshport/internal/ui"
+	"meshport/internal/update"
 	"net"
 	"os"
 	"os/signal"
@@ -14,7 +15,7 @@ import (
 	"time"
 )
 
-var version = "0.1.0"
+var version = "0.1.1"
 
 func main() {
 	flags := flag.NewFlagSet("meshport", flag.ExitOnError)
@@ -52,11 +53,30 @@ func main() {
 		listener.Close()
 		return
 	}
+	if command == "update" && os.Geteuid() != 0 {
+		log.Fatal("请使用 sudo meshport update 更新（仅支持 Linux systemd 安装）")
+	}
 	store, e := meshport.OpenStore(*dir)
 	if e != nil {
 		log.Fatal("cannot open state: ", e)
 	}
 	defer store.Close()
+	if command == "update" {
+		st, err := store.Load()
+		if err != nil {
+			log.Fatal("无法读取当前配置")
+		}
+		if st.Pending != nil {
+			log.Fatal("TUN 等待确认，请先确认或回退后再更新")
+		}
+		store.Close()
+		fmt.Println("正在检查并更新 Meshport；配置、订阅与代理内核将保留。")
+		if err = update.Run(version, st.Settings.WebPort); err != nil {
+			log.Fatal(err)
+		}
+		fmt.Println("版本检查与更新完成。")
+		return
+	}
 	var service meshport.Service = &meshport.SystemService{Helper: *helper}
 	if *driver == "process" {
 		service = &meshport.ProcessService{Binary: *binary, Dir: *dir}
@@ -133,7 +153,7 @@ func main() {
 	if e != nil {
 		log.Fatal(e)
 	}
-	handler := &meshport.HTTP{App: app, Host: *host, SecureCookie: *secure, Assets: ui.Handler()}
+	handler := &meshport.HTTP{App: app, Host: *host, SecureCookie: *secure, Assets: ui.Handler(), Version: version}
 	if e = handler.Listen(st.Settings.WebPort); e != nil {
 		log.Fatal(e)
 	}

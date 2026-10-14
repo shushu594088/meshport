@@ -1,7 +1,14 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onBeforeUnmount } from "vue";
+import { ref, watch, nextTick, onBeforeUnmount, useId } from "vue";
 import { X } from "lucide-vue-next";
-const props = defineProps<{ open: boolean; title: string; busy?: boolean }>();
+const props = defineProps<{
+  open: boolean;
+  title: string;
+  busy?: boolean;
+  description?: string;
+}>();
+const titleId = useId(),
+  descriptionId = useId();
 const emit = defineEmits<{ close: [] }>();
 const dialog = ref<HTMLDialogElement>();
 let trigger: HTMLElement | null = null;
@@ -24,11 +31,12 @@ onBeforeUnmount(() => dialog.value?.close());
 <template>
   <dialog
     ref="dialog"
-    aria-labelledby="dialog-title"
+    :aria-labelledby="titleId"
+    :aria-describedby="description ? descriptionId : undefined"
     @cancel.prevent="!busy && emit('close')"
   >
     <div class="dialog-head">
-      <h2 id="dialog-title">{{ title }}</h2>
+      <h2 :id="titleId">{{ title }}</h2>
       <button
         type="button"
         class="icon-button"
@@ -39,6 +47,10 @@ onBeforeUnmount(() => dialog.value?.close());
         <X />
       </button>
     </div>
+    <p v-if="description" :id="descriptionId">{{ description }}</p>
     <slot />
+    <div v-if="$slots.actions" class="dialog-actions">
+      <slot name="actions" />
+    </div>
   </dialog>
 </template>

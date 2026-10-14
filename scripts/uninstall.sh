@@ -2,6 +2,7 @@
 set -euo pipefail
 [[ $EUID -eq 0 ]] || { echo '请使用 sudo 运行卸载脚本'; exit 1; }
 [[ $# -eq 0 || ($# -eq 1 && $1 == --purge) ]] || { echo '用法：sudo bash uninstall.sh [--purge]';exit 1; }
+systemctl stop meshport-update.service 2>/dev/null || true
 systemctl stop meshport-tun-rollback.timer meshport-tun-rollback.service 2>/dev/null || true
 systemctl disable --now meshport.service meshport-mihomo.service 2>/dev/null || true
 if [[ -x /usr/libexec/meshport-helper ]]; then /usr/libexec/meshport-helper cleanup;fi

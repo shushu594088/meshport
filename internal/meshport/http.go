@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"golang.org/x/crypto/bcrypt"
 	"io"
+	"meshport/internal/update"
 	"net"
 	"net/http"
 	"net/url"
@@ -24,11 +25,13 @@ type HTTP struct {
 	App          *App
 	Host         string
 	SecureCookie bool
+	Version      string
 	Assets       http.Handler
 	mu           sync.Mutex
 	servers      []*http.Server
 	listeners    []net.Listener
 	attempts     map[string][]time.Time
+	testsActive  int
 }
 
 func (h *HTTP) Handler() http.Handler { return http.HandlerFunc(h.serve) }
@@ -106,6 +109,10 @@ func (h *HTTP) serve(w http.ResponseWriter, r *http.Request) {
 	}
 	if r.Method == "GET" {
 		h.read(w, r)
+		return
+	}
+	if strings.HasPrefix(r.URL.Path, "/api/tests/") && r.Method == "POST" {
+		h.diagnose(w, r)
 		return
 	}
 	unlock, e := h.App.Store.Lock()
@@ -243,6 +250,25 @@ func (h *HTTP) read(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	switch r.URL.Path {
+	case "/api/update":
+		ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+		defer cancel()
+		release, err := update.Check(ctx, update.NewClient(), h.Version)
+		if err != nil {
+			problem(w, 503, err)
+			return
+		}
+		_, systemd := h.App.Service.(*SystemService)
+		release.CanUpdate = release.CanUpdate && systemd
+		jsonResponse(w, 200, release)
+	case "/api/update/status":
+		status := update.Status{Phase: "idle", Message: "尚未开始更新"}
+		if data, err := os.ReadFile(update.StatusPath); err == nil {
+			_ = json.Unmarshal(data, &status)
+		}
+		jsonResponse(w, 200, map[string]any{"current": h.Version, "status": status})
+	case "/api/tests/sites":
+		jsonResponse(w, 200, diagnosticSites)
 	case "/api/state":
 		subs := []map[string]any{}
 		for _, s := range st.Subscriptions {
@@ -315,6 +341,15 @@ func (h *HTTP) mutate(w http.ResponseWriter, r *http.Request, old State) error {
 	next := old
 	ok := func() { jsonResponse(w, 200, map[string]bool{"ok": true}) }
 	switch {
+	case r.URL.Path == "/api/update" && r.Method == "POST":
+		if _, ok := a.Service.(*SystemService); !ok {
+			return errors.New("一键更新仅支持 Linux systemd 安装")
+		}
+		if e := a.Service.Action("update"); e != nil {
+			return e
+		}
+		jsonResponse(w, 202, map[string]bool{"ok": true})
+		return nil
 	case r.URL.Path == "/api/subscriptions" && r.Method == "POST":
 		var in struct {
 			Name    string `json:"name"`

@@ -68,6 +68,8 @@ Buttons have solid primary, neutral outline and separated danger variants. Minim
 
 Dialog.vue uses native dialog.showModal for inert background and focus containment, with app-owned content, explicit accessible titles, Escape, safe initial focus and restoration. Feedback is persistent inline for errors and global live status for success. No native browser confirmation dialogs.
 
+Diagnostics reuse the existing panel, button and semantic color tokens. Website cards use three columns on desktop, two on smaller workspaces and one on phones; each keeps a stable status, explanation and timestamp region. “支持”, “不支持”, “可访问” and “测试失败” always include labels and icons. Node selection and testing are separate buttons. VersionPanel reuses Dialog.vue for update confirmation; dialogs use unique label IDs so multiple mounted dialogs remain accessible.
+
 Motion is limited to a 150ms state transition and a spinner; prefers-reduced-motion disables it. All dates use zh-CN formatting in the browser's timezone, displayed alongside an explicit timezone label. No fabricated charts or statistics.
 
 ## Do's and Don'ts

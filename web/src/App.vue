@@ -27,6 +27,7 @@ import {
   X,
   LoaderCircle,
   ExternalLink,
+  Gauge,
 } from "lucide-vue-next";
 import {
   api,
@@ -41,12 +42,16 @@ import SecretField from "./components/SecretField.vue";
 import Dialog from "./components/Dialog.vue";
 import ModeControl from "./components/ModeControl.vue";
 import SelectField from "./components/SelectField.vue";
+import SiteTests from "./components/SiteTests.vue";
+import VersionPanel from "./components/VersionPanel.vue";
+import { useDiagnostics } from "./composables/useDiagnostics";
 import { useForm, passwordRule } from "./composables/useForm";
 
 const pages = [
   { id: "overview", name: "概览", icon: LayoutDashboard },
   { id: "subscriptions", name: "订阅", icon: Layers },
   { id: "nodes", name: "节点", icon: Network },
+  { id: "tests", name: "测试", icon: Gauge },
   { id: "settings", name: "设置", icon: Settings2 },
 ];
 const route = ref("overview"),
@@ -57,7 +62,7 @@ const auth = ref<{ initialized: boolean; authenticated: boolean } | null>(null),
   state = ref<State | null>(null),
   draft = ref<Settings | null>(null),
   draftRevision = ref(0);
-const busy = ref(false),
+const mutationBusy = ref(false),
   loading = ref(true),
   error = ref(""),
   success = ref(""),
@@ -80,6 +85,42 @@ const authPassword = ref(""),
   now = ref(Date.now()),
   bypassText = ref("");
 const form = useForm();
+const siteBusy = ref(false),
+  updateBusy = ref(false);
+function expired() {
+  auth.value = { initialized: true, authenticated: false };
+}
+const nodeTests = useDiagnostics(expired);
+const busy = computed(
+  () =>
+    mutationBusy.value ||
+    nodeTests.running.value ||
+    siteBusy.value ||
+    updateBusy.value,
+);
+const allTestNodes = computed(() =>
+  Object.values(proxies.value)
+    .filter(
+      (p) =>
+        !p.all?.length &&
+        !["DIRECT", "REJECT", "REJECT-DROP", "PASS", "COMPATIBLE"].includes(
+          p.name,
+        ),
+    )
+    .map((p) => p.name),
+);
+function nodeDelay(name: string) {
+  const result = nodeTests.results.value[name];
+  if (nodeTests.pending.value.has(name)) return "测试中…";
+  if (result)
+    return result.status === "supported" ? result.delay + " ms" : "测试失败";
+  const delay = proxies.value[name]?.history?.at(-1)?.delay;
+  return delay ? delay + " ms" : "未测试";
+}
+watch(
+  () => state.value?.revision,
+  () => nodeTests.reset(),
+);
 const { errors } = form;
 let refreshID = 0,
   refreshing = false,
@@ -208,7 +249,7 @@ async function loadNodes() {
 }
 async function mutate(task: () => Promise<unknown>, text: string) {
   if (busy.value) return false;
-  busy.value = true;
+  mutationBusy.value = true;
   error.value = "";
   success.value = "";
   try {
@@ -224,7 +265,7 @@ async function mutate(task: () => Promise<unknown>, text: string) {
       auth.value = { initialized: true, authenticated: false };
     return false;
   } finally {
-    busy.value = false;
+    mutationBusy.value = false;
   }
 }
 function ask(
@@ -313,6 +354,7 @@ async function clearSearch() {
   document.getElementById("list-search")?.focus();
 }
 watch(route, async () => {
+  nodeTests.cancel();
   document.title = "Meshport · " + title.value;
   error.value = "";
   if (route.value === "nodes") await loadNodes();
@@ -677,6 +719,7 @@ onBeforeUnmount(() => {
                 overview: "连接状态与代理控制，一目了然。",
                 subscriptions: "保存多份订阅，每次启用一份。",
                 nodes: "为当前策略组选择合适的连接。",
+                tests: "检查当前出口的网站连通性与地区支持。",
                 settings: "按照服务器的需要，配置每一个入口。",
               }[route]
             }}
@@ -1005,13 +1048,24 @@ onBeforeUnmount(() => {
               <h2>{{ activeSub?.name || "当前订阅" }}的节点</h2>
               <p>只有手动选择策略组可以切换；自动策略组展示当前结果。</p>
             </div>
-            <button
-              class="outline"
-              :disabled="busy || !state.service.running"
-              @click="loadNodes"
-            >
-              <RefreshCw />刷新节点
-            </button>
+            <div class="test-actions">
+              <button
+                class="primary"
+                :disabled="
+                  busy || !state.service.running || !allTestNodes.length
+                "
+                @click="nodeTests.run('delay', allTestNodes)"
+              >
+                <Gauge />一键测速
+              </button>
+              <button
+                class="outline"
+                :disabled="busy || !state.service.running"
+                @click="loadNodes"
+              >
+                <RefreshCw />刷新节点
+              </button>
+            </div>
           </div>
           <div v-if="!state.service.running" class="empty">
             <Network />
@@ -1029,7 +1083,28 @@ onBeforeUnmount(() => {
             {{ nodeError }}
           </div>
           <template v-else
-            ><SelectField
+            ><p class="test-explanation">
+              一键测速会检查全部
+              {{ allTestNodes.length }}
+              个节点（含其他策略组、筛选外和分页外节点），使用 Google 204
+              端点，超时 5 秒，不改变当前选择。
+            </p>
+            <div class="test-progress" role="status" aria-live="polite">
+              <template v-if="nodeTests.running.value"
+                ><LoaderCircle class="spin" /><span
+                  >已完成 {{ nodeTests.completed.value }} /
+                  {{ nodeTests.total.value }} 个节点</span
+                ><progress
+                  :value="nodeTests.completed.value"
+                  :max="nodeTests.total.value"
+                  aria-label="节点测速进度"
+                /><button class="outline" @click="nodeTests.cancel">
+                  <Square />取消测速
+                </button></template
+              >
+              <span v-else>{{ nodeTests.notice.value }}</span>
+            </div>
+            <SelectField
               id="proxy-group"
               v-model="group"
               label="策略组"
@@ -1078,33 +1153,63 @@ onBeforeUnmount(() => {
               </button>
             </div>
             <div class="node-grid">
-              <button
+              <article
                 v-for="node in visible as Proxy[]"
                 :key="node.name"
-                class="node"
+                class="node-card"
                 :class="{ selected: currentGroup?.now === node.name }"
-                :disabled="
-                  busy ||
-                  currentGroup?.type !== 'Selector' ||
-                  !!state.pending_tun
-                "
-                :aria-pressed="currentGroup?.now === node.name"
-                @click="selectNode(node.name)"
               >
-                <div>
-                  <strong>{{ node.name }}</strong
-                  ><Check v-if="currentGroup?.now === node.name" />
-                </div>
-                <span
-                  >{{ node.type || "节点" }}
-                  <span v-if="node.history?.length" class="mono"
-                    >· {{ node.history.at(-1)?.delay || "--" }} ms</span
-                  ></span
+                <button
+                  class="node"
+                  :class="{ selected: currentGroup?.now === node.name }"
+                  :disabled="
+                    busy ||
+                    currentGroup?.type !== 'Selector' ||
+                    !!state.pending_tun
+                  "
+                  :aria-pressed="currentGroup?.now === node.name"
+                  @click="selectNode(node.name)"
                 >
-              </button>
+                  <div>
+                    <strong>{{ node.name }}</strong
+                    ><Check v-if="currentGroup?.now === node.name" />
+                  </div>
+                  <span
+                    >{{ node.type || "节点" }}
+                    <span class="mono">· {{ nodeDelay(node.name) }}</span></span
+                  >
+                </button>
+                <div class="node-test-footer">
+                  <small
+                    :class="{
+                      'danger-text':
+                        nodeTests.results.value[node.name]?.status === 'failed',
+                    }"
+                    >{{
+                      nodeTests.results.value[node.name]?.detail || "延迟测试"
+                    }}</small
+                  ><button
+                    class="outline"
+                    :disabled="busy"
+                    :aria-label="'测速 ' + node.name"
+                    @click="nodeTests.run('delay', [node.name])"
+                  >
+                    <Gauge />测速
+                  </button>
+                </div>
+              </article>
             </div></template
           >
         </section>
+        <SiteTests
+          v-if="route === 'tests'"
+          :running="state.service.running"
+          :disabled="busy"
+          :revision="state.revision"
+          :mode="state.settings.mode"
+          @busy="siteBusy = $event"
+          @expired="expired"
+        />
         <section v-if="route === 'settings' && draft" class="settings-layout">
           <form
             novalidate
@@ -1247,6 +1352,14 @@ onBeforeUnmount(() => {
             <p>然后回到后台，关闭 TUN 并保存，再启动代理。</p>
           </aside>
         </section>
+        <VersionPanel
+          v-show="route === 'settings'"
+          :disabled="busy"
+          :pending="!!state.pending_tun"
+          :dirty="!!isDirty"
+          @busy="updateBusy = $event"
+          @expired="expired"
+        />
         <footer
           v-if="
             (route === 'subscriptions' || route === 'nodes') && filtered.length

@@ -11,6 +11,7 @@ Single administrator, zh-CN, operational language. Job: manage Linux server subs
 | Authentication, initialization, secret handling | README.md 架构与配置管理 | Product specification | 2026-10-13 |
 | Subscription lifecycle and deletion | README.md 订阅与节点 | Product specification | 2026-10-13 |
 | Service independence, persisted settings | README.md 架构与配置管理 | Product specification | 2026-10-13 |
+| Diagnostics and program updates | README.md 节点测速、网站测试与版本更新; docs/DEVELOPMENT.md | Product/API specification | 2026-10-14 |
 | TUN confirmation and recovery | README.md TUN 与故障恢复 | Product specification | 2026-10-13 |
 
 ## Visual contract
@@ -42,10 +43,12 @@ Subscriptions max 64 server-side. Nodes and subscriptions show 20 records per pa
 | Enable TUN | confirmation describes 60s window | persistent countdown and confirmation action | automatic server-side recovery | README.md TUN 与故障恢复 |
 | Choose node | global busy | server result then selected label | keep current selection | README.md 订阅与节点 |
 | Change password | disable duplicate submit | re-login with new password | retain fields and show error | README.md 管理员登录 |
+| Test node delays / websites | four concurrent requests, per-item pending and progress, cancel | preserve per-item result in memory | retain partial results, individual retry; reject changed configuration | README.md 节点测速、网站测试与版本更新 |
+| Check / install update | explicit check; app-owned restart confirmation | reconnect, server-confirmed completion and version | checksum/package failure leaves installation intact; install/health failure restores program files | README.md 节点测速、网站测试与版本更新 |
 
 ## Navigation and responsive behavior
 
-Four hash routes: overview, subscriptions, nodes, settings. Titles follow the active route. Settings drafts warn before in-app route changes via shared Dialog; beforeunload handles browser unload only. Nodes use cards so long identifiers wrap. Below 800px horizontal navigation replaces sidebar; below 560px forms stack.
+Five hash routes: overview, subscriptions, nodes, tests, settings. Titles follow the active route. Settings drafts warn before in-app route changes via shared Dialog; beforeunload handles browser unload only. Nodes use cards so long identifiers wrap. Below 800px horizontal navigation replaces sidebar; below 560px forms stack.
 
 ## Overlays and feedback
 
@@ -54,6 +57,8 @@ Dialog.vue is canonical, with safe initial focus, native modal focus containment
 ## Async and resilience
 
 Mutations are pessimistic with one shared busy owner. API fetches have a 60s timeout. Refresh uses request sequencing to ignore stale responses and never overwrites an edited settings draft. On offline errors cached data remains visible with an error. On 401 the auth view opens; settings draft stays in memory, secrets are not persisted. On 409 settings remain for review, refresh resolves the revision. TUN pending state is queried every 2s without relying on browser connectivity for recovery.
+
+Diagnostics use a shared useDiagnostics queue with at most four requests, AbortSignal cancellation, per-item failures and no automatic retry. Test results are transient and cleared when configuration revision changes. Node batches cover all actual nodes, regardless of the current group, filter or page. Website probes use the server HTTP proxy and current routing mode; accessible pages alone do not imply full media/account unlock. Update status lives on the server; VersionPanel remains mounted across route changes, polls progress every 2s and tolerates the backend restart. Update UI requires saved settings and no pending TUN; root CLI also refuses pending TUN. No update is installed merely by checking a version.
 
 ## Validation
 

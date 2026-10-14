@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"meshport/internal/update"
 	"net"
 	"os"
 	"os/exec"
@@ -88,6 +89,12 @@ func main() {
 		return
 	case "cleanup":
 		e = cleanup()
+	case "update":
+		// Fixed root-owned executable in an independent unit survives the Web service restart.
+		_, e = run("/usr/bin/systemd-run", "--quiet", "--collect", "--unit=meshport-update", "--property=Type=exec", "/usr/bin/meshport", "update")
+		if e == nil {
+			fmt.Println("更新任务已启动：" + update.StatusPath)
+		}
 	default:
 		e = fmt.Errorf("operation not allowed")
 	}

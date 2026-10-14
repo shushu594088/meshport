@@ -52,6 +52,7 @@ export async function api<T>(
   path: string,
   method = "GET",
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 60000);
@@ -64,13 +65,16 @@ export async function api<T>(
         "X-Meshport-Request": "1",
       },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: controller.signal,
+      signal: signal
+        ? AbortSignal.any([controller.signal, signal])
+        : controller.signal,
     });
     const value = await res.json();
     if (!res.ok)
       throw new APIError(value.error || "操作失败，请重试", res.status);
     return value;
   } catch (e) {
+    if (signal?.aborted) throw e;
     if (e instanceof APIError) throw e;
     throw new APIError("无法连接后台，请检查网络后重试", 0);
   } finally {

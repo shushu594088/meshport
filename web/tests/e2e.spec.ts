@@ -25,7 +25,7 @@ test('subscription CRUD, invalid import, dialog keyboard and node offline state'
  await expect(select).toBeVisible()
  await select.selectOption('PROXY')
  await select.focus();await page.keyboard.press('Alt+ArrowDown');await page.keyboard.press('Escape')
- await page.getByRole('button',{name:/浏览器备用节点/}).click()
+ await page.locator('button.node').filter({hasText:'浏览器备用节点'}).click()
  await expect(page.locator('.group-result')).toContainText('浏览器备用节点')
  await page.getByRole('link',{name:'概览',exact:true}).click()
  await page.getByRole('button',{name:'停止代理',exact:true}).click()
